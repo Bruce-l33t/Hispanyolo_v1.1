@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pirate UI</title>
+    <meta charset="UTF-8">
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="formatting.js"></script>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: monospace;
+            margin: 20px;
+            font-size: 14px;
+        }
+
+        .section {
+            background-color: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            color: #569cd6;
+            margin-top: 0;
+            font-size: 16px;
+        }
+
+        .status {
+            display: flex;
+            gap: 20px;
+        }
+
+        .online {
+            color: #6A9955;
+            font-size: 20px;
+        }
+
+        .offline {
+            color: #F44747;
+            font-size: 20px;
+        }
+
+        .error {
+            color: #F44747;
+            margin-bottom: 10px;
+        }
+
+        .overall-pnl {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .overall-pnl-item {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: left;
+        }
+
+        .overall-pnl-label {
+            color: #9cdcfe;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .overall-pnl-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .currency {
+            color: #808080;
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .profit {
+            color: #6A9955;
+        }
+
+        .loss {
+            color: #F44747;
+        }
+
+        .neutral {
+            color: #d4d4d4;
+        }
+
+        .positions-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .position {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 0;
+        }
+
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .position-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .position-symbol {
+            color: #9cdcfe;
+            font-size: 14px;
+        }
+
+        .position-category {
+            color: #569cd6;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .position-change {
+            font-size: 14px;
+        }
+
+        .position-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .position-detail {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .detail-label {
+            color: #9cdcfe;
+        }
+
+        .detail-value {
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .token-section {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .token-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .token {
+            background-color: #2d2d2d;
+            padding: 12px;
+            border-radius: 5px;
+        }
+
+        .token-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .token-name {
+            color: #9cdcfe;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .token-score {
+            color: #569cd6;
+            font-size: 14px;
+        }
+
+        .token-metrics {
+            color: #808080;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .recent-activity {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .transaction {
+            background-color: #2d2d2d;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .transaction-type {
+            color: #9cdcfe;
+            font-weight: bold;
+        }
+
+        .transaction-time {
+            color: #808080;
+        }
+
+        .transaction-details {
+            color: #d4d4d4;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        function App() {
+            const [data, setData] = useState(null);
+            const [error, setError] = useState(null);
+            const [connected, setConnected] = useState(false);
+            const [lastUpdate, setLastUpdate] = useState(Date.now());
+            const ws = useRef(null);
+
+            useEffect(() => {
+                connectWebSocket();
+                return () => {
+                    if (ws.current) {
+                        ws.current.close();
+                    }
+                };
+            }, []);
+
+            function connectWebSocket() {
+                ws.current = new WebSocket('ws://localhost:8000');
+
+                ws.current.onopen = () => {
+                    console.log('Connected to server');
+                    setConnected(true);
+                    setError(null);
+                };
+
+                ws.current.onclose = () => {
+                    console.log('Disconnected from server');
+                    setConnected(false);
+                    setTimeout(connectWebSocket, 1000);
+                };
+
+                ws.current.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    setError('Failed to connect to server');
+                };
+
+                ws.current.onmessage = (event) => {
+                    const newData = JSON.parse(event.data);
+                    setData(newData);
+                    setLastUpdate(Date.now());
+                };
+            }
+
+            if (!data) {
+                return <div>Loading...</div>;
+            }
+
+            const timeSinceUpdate = Math.floor((Date.now() - lastUpdate) / 1000);
+
+            // Calculate current PNL
+            const currentRPNL = data.active_positions.reduce((sum, pos) => sum + (pos.r_pnl || 0), 0);
+            const currentURPNL = data.active_positions.reduce((sum, pos) => sum + (pos.ur_pnl || 0), 0);
+            const totalPNL = currentRPNL + currentURPNL;
+
+            return (
+                <div>
+                    {error && <div className="error">{error}</div>}
+                    
+                    <div className="section">
+                        <h2>System Status {connected ? 
+                            <span className="online">●</span> : 
+                            <span className="offline">●</span>}
+                        </h2>
+                        <div className="status">
+                            <div>Wallets: {data.wallets_checked}</div>
+                            <div>Transactions: {data.transactions_processed}</div>
+                            <div>Last Update: {timeSinceUpdate}s ago</div>
+                        </div>
+                    </div>
+
+                    <div className="section">
+                        <h2>Portfolio</h2>
+                        <div className="overall-pnl">
+                            <div className="overall-pnl-item">
+                                <div className="overall-pnl-label">Total rPNL</div>
+                                <div className={`overall-pnl-value ${currentRPNL > 0 ? "profit" : currentRPNL < 0 ? "loss" : "neutral"}`}>
+                                    {formatPrice(currentRPNL)}
+                                </div>
+                            </div>
+                            <div className="overall-pnl-item">
+                                <div className="overall-pnl-label">Total urPNL</div>
+                                <div className={`overall-pnl-value ${currentURPNL > 0 ? "profit" : currentURPNL < 0 ? "loss" : "neutral"}`}>
+                                    {formatPrice(currentURPNL)}
+                                </div>
+                            </div>
+                            <div className="overall-pnl-item">
+                                <div className="overall-pnl-label">Total PNL</div>
+                                <div className={`overall-pnl-value ${totalPNL > 0 ? "profit" : totalPNL < 0 ? "loss" : "neutral"}`}>
+                                    {formatPrice(totalPNL)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="positions-grid">
+                            {data.active_positions.map((position, index) => {
+                                const percentChange = ((position.current_price - position.entry_price) / position.entry_price);
+                                const value = position.current_price * position.tokens;
+                                
+                                return (
+                                    <div key={index} className="position">
+                                        <div className="position-header">
+                                            <div className="position-title">
+                                                {getTokenEmoji(position.category)}
+                                                <span className="position-symbol">{position.symbol}</span>
+                                                <span className="position-category">({position.category})</span>
+                                            </div>
+                                            <div className={`position-change ${percentChange >= 0 ? "profit" : "loss"}`}>
+                                                {formatPercentage(percentChange)}
+                                            </div>
+                                        </div>
+                                        <div className="position-details">
+                                            <div className="position-detail">
+                                                <span className="detail-label">Entry:</span>
+                                                <span className="detail-value">{formatPrice(position.entry_price)}</span>
+                                            </div>
+                                            <div className="position-detail">
+                                                <span className="detail-label">Current:</span>
+                                                <span className="detail-value">{formatPrice(position.current_price)}</span>
+                                            </div>
+                                            <div className="position-detail">
+                                                <span className="detail-label">Value:</span>
+                                                <span className="detail-value">{formatPrice(value)}</span>
+                                            </div>
+                                            <div className="position-detail">
+                                                <span className="detail-label">Tokens:</span>
+                                                <span className="detail-value">{formatNumber(position.tokens)}</span>
+                                            </div>
+                                            <div className="position-detail">
+                                                <span className="detail-label">urPNL:</span>
+                                                <span className={`detail-value ${position.ur_pnl >= 0 ? "profit" : "loss"}`}>
+                                                    {formatPrice(position.ur_pnl)}
+                                                </span>
+                                            </div>
+                                            <div className="position-detail">
+                                                <span className="detail-label">rPNL:</span>
+                                                <span className={`detail-value ${position.r_pnl >= 0 ? "profit" : "loss"}`}>
+                                                    {formatPrice(position.r_pnl)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="section">
+                        <h2>Recent Activity</h2>
+                        <div className="recent-activity">
+                            {data.recent_transactions.length === 0 ? (
+                                <div>No recent transactions</div>
+                            ) : (
+                                data.recent_transactions.map((tx, index) => (
+                                    <div key={index} className="transaction">
+                                        <div className="transaction-header">
+                                            <span className="transaction-type">{tx.type}</span>
+                                            <span className="transaction-time">{tx.time}</span>
+                                        </div>
+                                        <div className="transaction-details">{tx.details}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="section">
+                        <h2>Top AI/Hybrid Tokens</h2>
+                        <div className="token-section">
+                            <div className="token-list">
+                                {Object.entries(data.token_metrics)
+                                    .filter(([_, token]) => token.category === 'AI')
+                                    .sort((a, b) => b[1].score - a[1].score)
+                                    .slice(0, 5)
+                                    .map(([address, token]) => (
+                                        <div key={address} className="token">
+                                            <div className="token-header">
+                                                <span className="token-name">{token.symbol}</span>
+                                                <span className="token-score">Score: {formatNumber(token.score)}</span>
+                                            </div>
+                                            <div className="token-metrics">
+                                                {token.pnl_24h && (
+                                                    <span className={token.pnl_24h >= 0 ? "profit" : "loss"}>
+                                                        24h: {formatPercentage(token.pnl_24h/100)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="section">
+                        <h2>Top Meme Tokens</h2>
+                        <div className="token-section">
+                            <div className="token-list">
+                                {Object.entries(data.token_metrics)
+                                    .filter(([_, token]) => token.category === 'MEME')
+                                    .sort((a, b) => b[1].score - a[1].score)
+                                    .slice(0, 5)
+                                    .map(([address, token]) => (
+                                        <div key={address} className="token">
+                                            <div className="token-header">
+                                                <span className="token-name">{token.symbol}</span>
+                                                <span className="token-score">Score: {formatNumber(token.score)}</span>
+                                            </div>
+                                            <div className="token-metrics">
+                                                {token.pnl_24h && (
+                                                    <span className={token.pnl_24h >= 0 ? "profit" : "loss"}>
+                                                        24h: {formatPercentage(token.pnl_24h/100)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const { useState, useEffect, useRef } = React;
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
