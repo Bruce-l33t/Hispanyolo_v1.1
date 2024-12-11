@@ -17,12 +17,13 @@ git clone https://github.com/Bruce-l33t/Hispanyolo_v1.git
 cd Hispanyolo_v1
 ```
 
-2. Create dontshare.py with your API keys:
-```python
-birdeye_api_key = "your_key_here"
-alchemy_url = "your_url_here"
-sol_key = "your_key_here"
+2. Transfer sensitive files (DO NOT add these to git):
+```bash
+# From your local machine, run:
+scp dontshare.py user@your-server-ip:~/Hispanyolo_v1/
+scp crystalized_wallets.csv user@your-server-ip:~/Hispanyolo_v1/
 ```
+Replace 'user' and 'your-server-ip' with your actual server credentials.
 
 3. Make setup script executable and run it:
 ```bash
@@ -104,3 +105,13 @@ pm2 restart all
 - Regularly update system packages: `sudo apt update && sudo apt upgrade`
 - Keep Node.js and Python packages updated
 - Monitor GitHub repository for updates
+
+## Security Notes
+
+Sensitive files that should NOT be in git:
+- dontshare.py (contains API keys and private keys)
+- crystalized_wallets.csv (contains wallet data)
+- Any log files
+- Any environment-specific configurations
+
+These files should be transferred directly to the server using SCP or SFTP. When you need to update these files, use the same SCP command to transfer the new versions.
