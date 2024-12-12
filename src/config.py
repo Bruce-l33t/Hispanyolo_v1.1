@@ -44,17 +44,17 @@ PROFIT_LEVELS = [
 ]
 
 # Transaction settings
-PRIORITY_FEE_LAMPORTS = 1_000_000  # 0.001 SOL priority fee
-MAX_RETRIES = 3                    # Maximum retry attempts
-RETRY_DELAY = 1                    # Delay between retries (seconds)
-CONFIRMATION_TIMEOUT = 30          # Transaction confirmation timeout (seconds)
+PRIORITY_FEE_LAMPORTS = 250_000   # 0.00025 SOL priority fee
+MAX_RETRIES = 3                   # Maximum retry attempts
+RETRY_DELAY = 1                   # Delay between retries (seconds)
+CONFIRMATION_TIMEOUT = 30         # Transaction confirmation timeout (seconds)
 
 # Test settings
 TEST_SETTINGS = {
     'token_address': '8i51XNNpGaKaj4G4nDdmQh95v4FKAxw8mhtaRoKd9tE8',
     'amount': 0.001,               # Test amount in SOL
     'slippage': 0.01,             # 1% slippage for tests
-    'priority_fee': 1_000_000,    # 0.001 SOL priority fee for tests
+    'priority_fee': 250_000,       # 0.00025 SOL priority fee for tests
     'max_retries': 3,             # Test retry attempts
     'retry_delay': 1,             # Test retry delay
     'confirmation_timeout': 30     # Test confirmation timeout

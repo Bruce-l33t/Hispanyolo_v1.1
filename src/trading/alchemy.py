@@ -30,14 +30,20 @@ class AlchemyTrader:
         self,
         token_address: str,
         amount_in: float,
+        is_sell: bool = False,
         slippage: float = 0.01
     ) -> Optional[Dict]:
         """Get Jupiter quote for swap"""
         try:
             amount_lamports = int(amount_in * 1_000_000_000)  # Convert to lamports
+            
+            # For sells, swap from token to SOL
+            input_mint = token_address if is_sell else WSOL_ADDRESS
+            output_mint = WSOL_ADDRESS if is_sell else token_address
+            
             params = {
-                "inputMint": WSOL_ADDRESS,
-                "outputMint": token_address,
+                "inputMint": input_mint,
+                "outputMint": output_mint,
                 "amount": amount_lamports,
                 "slippageBps": int(slippage * 10000),  # Convert to basis points
                 "onlyDirectRoutes": "true",
@@ -56,8 +62,8 @@ class AlchemyTrader:
                 return None
                 
             self.logger.info(
-                f"Quote received - Input: {quote['inAmount']} lamports, "
-                f"Output: {quote['outAmount']} tokens, "
+                f"Quote received - Input: {quote['inAmount']} {'tokens' if is_sell else 'lamports'}, "
+                f"Output: {quote['outAmount']} {'lamports' if is_sell else 'tokens'}, "
                 f"Price impact: {quote.get('priceImpactPct', '0')}%"
             )
             return quote
@@ -76,14 +82,16 @@ class AlchemyTrader:
         self,
         token_address: str,
         amount_in: float,
+        is_sell: bool = False,
         slippage: float = 0.01,
         max_retries: int = MAX_RETRIES
     ) -> Optional[str]:
         """Execute complete swap flow
         
         Args:
-            token_address: Address of token to swap to
-            amount_in: Amount of SOL to swap
+            token_address: Address of token to swap to/from
+            amount_in: Amount to swap (in SOL for buys, in tokens for sells)
+            is_sell: True if selling tokens for SOL, False if buying tokens with SOL
             slippage: Slippage tolerance (default: 1%)
             max_retries: Maximum retry attempts (default from config)
         """
@@ -93,6 +101,7 @@ class AlchemyTrader:
                 quote = self.get_jupiter_quote(
                     token_address=token_address,
                     amount_in=amount_in,
+                    is_sell=is_sell,
                     slippage=slippage
                 )
                 if not quote:

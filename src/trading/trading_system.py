@@ -50,22 +50,24 @@ class TradingSystem:
             # 3. Get quote first for price info
             quote = self.trader.get_jupiter_quote(
                 token_address=trade_params['token_address'],
-                amount_in=trade_params['size']
+                amount_in=trade_params['size'],
+                is_sell=False  # This is a buy
             )
             if not quote:
                 self.logger.error("Could not get quote")
                 return
 
-            # Calculate price from quote
+            # Calculate price directly from quote amounts
             in_amount = float(quote['inAmount']) / 1e9  # Convert lamports to SOL
-            out_amount = float(quote['outAmount'])
+            out_amount = float(quote['outAmount']) / 1e6  # Convert to actual tokens (6 decimals)
             price = in_amount / out_amount if out_amount > 0 else 0
                 
             # 4. Execute trade
             self.logger.info(f"Executing trade: {trade_params}")
             signature = await self.trader.execute_swap(
                 token_address=trade_params['token_address'],
-                amount_in=trade_params['size']
+                amount_in=trade_params['size'],
+                is_sell=False  # This is a buy
             )
             
             if signature:
@@ -85,6 +87,12 @@ class TradingSystem:
                     )
                     
                     if position:
+                        # Set initial current price to execution price
+                        self.position_manager.update_position(
+                            position.token_address,
+                            price  # Use execution price as initial current price
+                        )
+                        
                         # Emit position update
                         await self.emit_position_update()
                 else:
@@ -116,24 +124,44 @@ class TradingSystem:
         )
         
         for attempt in range(max_retries):
-            # Execute sell
+            # Get quote for the sell
+            quote = self.trader.get_jupiter_quote(
+                token_address=token_address,
+                amount_in=tokens_to_sell,
+                is_sell=True  # This is a sell
+            )
+            if not quote:
+                self.logger.error("Could not get sell quote")
+                continue
+
+            # Calculate actual sell price from quote
+            in_amount = float(quote['inAmount']) / 1e6  # Convert to actual tokens (6 decimals)
+            out_amount = float(quote['outAmount']) / 1e9  # Convert lamports to SOL
+            actual_price = out_amount / in_amount if in_amount > 0 else 0
+            
+            if actual_price <= 0:
+                self.logger.error("Invalid sell price from quote")
+                continue
+
+            # Execute sell with the quoted amount
             signature = await self.trader.execute_swap(
                 token_address=token_address,
-                amount_in=tokens_to_sell
+                amount_in=tokens_to_sell,
+                is_sell=True  # This is a sell
             )
             
             if signature:
-                # Update realized PNL and remaining tokens
+                # Update realized PNL and remaining tokens using actual execution price
                 self.position_manager.update_realized_pnl(
                     token_address=token_address,
                     tokens_sold=tokens_to_sell,
-                    sell_price=target_price
+                    sell_price=actual_price
                 )
                 
                 # Update unrealized PNL with current price
                 self.position_manager.update_position(
                     token_address=token_address,
-                    current_price=target_price
+                    current_price=actual_price
                 )
                 
                 if position.tokens < 1:  # Close if less than 1 token left
@@ -210,15 +238,6 @@ class TradingSystem:
                         ):
                             position.profit_levels_hit.add(i)
                         break  # Only take one profit at a time
-                    
-                # Check stop loss
-                if self.position_manager.check_stop_loss(position):
-                    await self.execute_take_profit(
-                        token_address=position.token_address,
-                        tokens_to_sell=position.tokens,  # Sell all tokens
-                        target_price=price
-                    )
-                    continue
                     
         except Exception as e:
             self.logger.error(f"Error updating positions: {e}")

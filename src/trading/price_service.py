@@ -20,7 +20,7 @@ class PriceService:
         self.cache_time = 60  # Cache prices for 60 seconds
         self.max_retries = 3
         self.retry_delay = 1
-        self.trader = AlchemyTrader()  # Use existing trader for quotes
+        self.trader = AlchemyTrader()
         
     def _is_cache_valid(self, token_address: str) -> bool:
         """Check if cached price is still valid"""
@@ -30,11 +30,11 @@ class PriceService:
         cache_entry = self.cache[token_address]
         age = (datetime.now(timezone.utc) - cache_entry['time']).total_seconds()
         return age < self.cache_time
-        
+            
     async def _fetch_price(self, token_address: str, retry_count: int = 0) -> Optional[float]:
         """Fetch price from Jupiter quote"""
         try:
-            # Get quote for 1 SOL to calculate price
+            # Get Jupiter quote for 1 SOL
             quote = self.trader.get_jupiter_quote(
                 token_address=token_address,
                 amount_in=1.0  # 1 SOL quote
@@ -47,18 +47,18 @@ class PriceService:
                 self.logger.error(f"Could not get quote for {token_address}")
                 return None
                 
-            # Calculate price from quote
+            # Calculate price directly from quote amounts
             in_amount = float(quote['inAmount']) / 1e9  # Convert lamports to SOL
-            out_amount = float(quote['outAmount'])
-            if out_amount <= 0:
-                self.logger.error(f"Invalid quote amount for {token_address}")
-                return None
-                
-            price = in_amount / out_amount
+            out_amount = float(quote['outAmount']) / 1e9  # Convert to actual tokens
+            price = in_amount / out_amount if out_amount > 0 else 0
+            
             return price
                     
         except Exception as e:
             self.logger.error(f"Error fetching price for {token_address}: {e}")
+            if retry_count < self.max_retries:
+                await asyncio.sleep(self.retry_delay * (retry_count + 1))
+                return await self._fetch_price(token_address, retry_count + 1)
             return None
             
     async def get_price(self, token_address: str) -> Optional[float]:
@@ -68,31 +68,16 @@ class PriceService:
             if self._is_cache_valid(token_address):
                 return self.cache[token_address]['price']
                 
-            # Fetch new price with retries
-            retry_count = 0
-            while retry_count <= self.max_retries:
-                try:
-                    price = await self._fetch_price(token_address, retry_count)
-                    if price is not None:
-                        # Update cache
-                        self.cache[token_address] = {
-                            'price': price,
-                            'time': datetime.now(timezone.utc)
-                        }
-                        return price
-                        
-                    return None
-                        
-                except Exception as e:
-                    if retry_count < self.max_retries:
-                        self.logger.warning(f"Retry {retry_count + 1}/{self.max_retries}")
-                        await asyncio.sleep(self.retry_delay * (retry_count + 1))
-                        retry_count += 1
-                        continue
-                    
-                    self.logger.error(f"Error getting price for {token_address}: {e}")
-                    return None
-                    
+            # Fetch new price
+            price = await self._fetch_price(token_address)
+            if price is not None:
+                # Update cache
+                self.cache[token_address] = {
+                    'price': price,
+                    'time': datetime.now(timezone.utc)
+                }
+                return price
+                
             return None
                     
         except Exception as e:
@@ -102,7 +87,6 @@ class PriceService:
     async def get_prices(self, token_addresses: list) -> Dict[str, float]:
         """Get prices for multiple tokens"""
         prices = {}
-        tasks = []
         uncached_tokens = []
         
         # Get cached prices
@@ -114,9 +98,8 @@ class PriceService:
                 
         # Fetch uncached prices
         if uncached_tokens:
-            results = await asyncio.gather(*[
-                self._fetch_price(addr) for addr in uncached_tokens
-            ], return_exceptions=True)
+            tasks = [self._fetch_price(addr) for addr in uncached_tokens]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             
             for addr, result in zip(uncached_tokens, results):
                 if isinstance(result, Exception):
