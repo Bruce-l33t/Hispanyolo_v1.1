@@ -25,9 +25,9 @@ SCORE_THRESHOLDS = {
 }
 
 POSITION_SIZES = {
-    'AI': 0.05,      # SOL
-    'MEME': 0.025,   # SOL
-    'HYBRID': 0.05   # SOL
+    'AI': 1.0,      # SOL
+    'MEME': 0.25,   # SOL
+    'HYBRID': 1.0   # SOL
 }
 
 # Position limits
