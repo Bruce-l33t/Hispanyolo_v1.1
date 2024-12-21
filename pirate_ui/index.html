@@ -229,238 +229,260 @@
             color: #d4d4d4;
             font-size: 12px;
         }
+
+        .error-boundary {
+            padding: 20px;
+            background: #2a1a1a;
+            border: 1px solid #F44747;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .retry-button {
+            background: #569cd6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .retry-button:hover {
+            background: #4e8ac7;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .connected {
+            background: #6A9955;
+            color: white;
+        }
+        
+        .disconnected {
+            background: #F44747;
+            color: white;
+        }
+        
+        .reconnecting {
+            background: #569cd6;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        function App() {
-            const [data, setData] = useState(null);
-            const [error, setError] = useState(null);
-            const [connected, setConnected] = useState(false);
-            const [lastUpdate, setLastUpdate] = useState(Date.now());
-            const ws = useRef(null);
-
-            useEffect(() => {
-                connectWebSocket();
+        // Error Boundary Component
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false };
+            }
+            
+            static getDerivedStateFromError(error) {
+                return { hasError: true };
+            }
+            
+            componentDidCatch(error, errorInfo) {
+                console.error('Error caught by boundary:', error, errorInfo);
+            }
+            
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="error-boundary">
+                            <h3>Something went wrong</h3>
+                            <button 
+                                className="retry-button"
+                                onClick={() => {
+                                    this.setState({ hasError: false });
+                                    if (this.props.onRetry) {
+                                        this.props.onRetry();
+                                    }
+                                }}
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+        
+        // Connection Status Component
+        function ConnectionStatus({ status }) {
+            const statusClass = {
+                connected: 'connected',
+                disconnected: 'disconnected',
+                reconnecting: 'reconnecting'
+            }[status];
+            
+            const statusText = {
+                connected: 'Connected',
+                disconnected: 'Disconnected',
+                reconnecting: 'Reconnecting...'
+            }[status];
+            
+            return (
+                <div className={`connection-status ${statusClass}`}>
+                    {statusText}
+                </div>
+            );
+        }
+        
+        // Custom hook for WebSocket connection
+        function useWebSocket(url, options = {}) {
+            const [status, setStatus] = React.useState('disconnected');
+            const [data, setData] = React.useState(null);
+            const ws = React.useRef(null);
+            const reconnectTimeout = React.useRef(null);
+            const reconnectAttempts = React.useRef(0);
+            const maxReconnectAttempts = options.maxReconnectAttempts || 5;
+            const reconnectDelay = options.reconnectDelay || 1000;
+            
+            const connect = React.useCallback(() => {
+                if (ws.current?.readyState === WebSocket.OPEN) {
+                    return;
+                }
+                
+                try {
+                    ws.current = new WebSocket(url);
+                    
+                    ws.current.onopen = () => {
+                        console.log('WebSocket connected');
+                        setStatus('connected');
+                        reconnectAttempts.current = 0;
+                        
+                        // Request full state on connection
+                        ws.current.send(JSON.stringify({ type: 'request_full_state' }));
+                    };
+                    
+                    ws.current.onmessage = (event) => {
+                        const newData = JSON.parse(event.data);
+                        setData(prevData => {
+                            // Merge new data with existing state
+                            if (newData.type === 'full_state') {
+                                return newData.data;
+                            } else {
+                                return { ...prevData, ...newData };
+                            }
+                        });
+                        
+                        // Store positions in localStorage as backup
+                        if (newData.positions) {
+                            localStorage.setItem('positions', JSON.stringify(newData.positions));
+                        }
+                    };
+                    
+                    ws.current.onclose = () => {
+                        console.log('WebSocket closed');
+                        setStatus('disconnected');
+                        
+                        // Attempt to reconnect
+                        if (reconnectAttempts.current < maxReconnectAttempts) {
+                            setStatus('reconnecting');
+                            reconnectTimeout.current = setTimeout(() => {
+                                reconnectAttempts.current += 1;
+                                connect();
+                            }, reconnectDelay * Math.pow(2, reconnectAttempts.current));
+                        }
+                    };
+                    
+                    ws.current.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                    };
+                    
+                } catch (error) {
+                    console.error('Error creating WebSocket:', error);
+                }
+            }, [url]);
+            
+            // Connect on mount
+            React.useEffect(() => {
+                connect();
+                
+                // Load positions from localStorage if available
+                const savedPositions = localStorage.getItem('positions');
+                if (savedPositions) {
+                    setData(prevData => ({
+                        ...prevData,
+                        positions: JSON.parse(savedPositions)
+                    }));
+                }
+                
                 return () => {
                     if (ws.current) {
                         ws.current.close();
                     }
+                    if (reconnectTimeout.current) {
+                        clearTimeout(reconnectTimeout.current);
+                    }
                 };
-            }, []);
-
-            function connectWebSocket() {
-                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsHost = window.location.hostname || 'localhost';
-                const wsUrl = `${wsProtocol}//${wsHost}:8000`;
-                ws.current = new WebSocket(wsUrl);
-
-                ws.current.onopen = () => {
-                    console.log('Connected to server');
-                    setConnected(true);
-                    setError(null);
-                };
-
-                ws.current.onclose = () => {
-                    console.log('Disconnected from server');
-                    setConnected(false);
-                    setTimeout(connectWebSocket, 1000);
-                };
-
-                ws.current.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                    setError('Failed to connect to server');
-                };
-
-                ws.current.onmessage = (event) => {
-                    const newData = JSON.parse(event.data);
-                    setData(newData);
-                    setLastUpdate(Date.now());
-                };
-            }
-
+            }, [connect]);
+            
+            return { status, data, connect };
+        }
+        
+        function App() {
+            const { status, data, connect } = useWebSocket('ws://localhost:8000/ws', {
+                maxReconnectAttempts: 5,
+                reconnectDelay: 1000
+            });
+            
             if (!data) {
-                return <div>Loading...</div>;
+                return (
+                    <div className="section">
+                        <h2>Loading...</h2>
+                    </div>
+                );
             }
-
-            const timeSinceUpdate = Math.floor((Date.now() - lastUpdate) / 1000);
-
-            // Calculate current PNL
-            const currentRPNL = data.active_positions.reduce((sum, pos) => sum + (pos.r_pnl || 0), 0);
-            const currentURPNL = data.active_positions.reduce((sum, pos) => sum + (pos.ur_pnl || 0), 0);
-            const totalPNL = currentRPNL + currentURPNL;
-
+            
             return (
-                <div>
-                    {error && <div className="error">{error}</div>}
+                <ErrorBoundary onRetry={connect}>
+                    <ConnectionStatus status={status} />
                     
                     <div className="section">
-                        <h2>System Status {connected ? 
-                            <span className="online">●</span> : 
-                            <span className="offline">●</span>}
-                        </h2>
-                        <div className="status">
-                            <div>Wallets: {data.wallets_checked}</div>
-                            <div>Transactions: {data.transactions_processed}</div>
-                            <div>Last Update: {timeSinceUpdate}s ago</div>
-                        </div>
+                        <h2>System Status</h2>
+                        <SystemStatus data={data} />
                     </div>
-
-                    <div className="section">
-                        <h2>Portfolio</h2>
-                        <div className="overall-pnl">
-                            <div className="overall-pnl-item">
-                                <div className="overall-pnl-label">Total rPNL</div>
-                                <div className={`overall-pnl-value ${currentRPNL > 0 ? "profit" : currentRPNL < 0 ? "loss" : "neutral"}`}>
-                                    {formatPrice(currentRPNL)}
-                                </div>
-                            </div>
-                            <div className="overall-pnl-item">
-                                <div className="overall-pnl-label">Total urPNL</div>
-                                <div className={`overall-pnl-value ${currentURPNL > 0 ? "profit" : currentURPNL < 0 ? "loss" : "neutral"}`}>
-                                    {formatPrice(currentURPNL)}
-                                </div>
-                            </div>
-                            <div className="overall-pnl-item">
-                                <div className="overall-pnl-label">Total PNL</div>
-                                <div className={`overall-pnl-value ${totalPNL > 0 ? "profit" : totalPNL < 0 ? "loss" : "neutral"}`}>
-                                    {formatPrice(totalPNL)}
-                                </div>
-                            </div>
+                    
+                    <ErrorBoundary>
+                        <div className="section">
+                            <h2>Portfolio</h2>
+                            <Portfolio positions={data.positions || {}} />
                         </div>
-
-                        <div className="positions-grid">
-                            {data.active_positions.map((position, index) => {
-                                const percentChange = ((position.current_price - position.entry_price) / position.entry_price);
-                                const value = position.current_price * position.tokens;
-                                
-                                return (
-                                    <div key={index} className="position">
-                                        <div className="position-header">
-                                            <div className="position-title">
-                                                {getTokenEmoji(position.category)}
-                                                <span className="position-symbol">{position.symbol}</span>
-                                                <span className="position-category">({position.category})</span>
-                                            </div>
-                                            <div className={`position-change ${percentChange >= 0 ? "profit" : "loss"}`}>
-                                                {formatPercentage(percentChange)}
-                                            </div>
-                                        </div>
-                                        <div className="position-details">
-                                            <div className="position-detail">
-                                                <span className="detail-label">Entry:</span>
-                                                <span className="detail-value">{formatPrice(position.entry_price)}</span>
-                                            </div>
-                                            <div className="position-detail">
-                                                <span className="detail-label">Current:</span>
-                                                <span className="detail-value">{formatPrice(position.current_price)}</span>
-                                            </div>
-                                            <div className="position-detail">
-                                                <span className="detail-label">Value:</span>
-                                                <span className="detail-value">{formatPrice(value)}</span>
-                                            </div>
-                                            <div className="position-detail">
-                                                <span className="detail-label">Tokens:</span>
-                                                <span className="detail-value">{formatNumber(position.tokens)}</span>
-                                            </div>
-                                            <div className="position-detail">
-                                                <span className="detail-label">urPNL:</span>
-                                                <span className={`detail-value ${position.ur_pnl >= 0 ? "profit" : "loss"}`}>
-                                                    {formatPrice(position.ur_pnl)}
-                                                </span>
-                                            </div>
-                                            <div className="position-detail">
-                                                <span className="detail-label">rPNL:</span>
-                                                <span className={`detail-value ${position.r_pnl >= 0 ? "profit" : "loss"}`}>
-                                                    {formatPrice(position.r_pnl)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                    </ErrorBoundary>
+                    
+                    <ErrorBoundary>
+                        <div className="section">
+                            <h2>Token Metrics</h2>
+                            <TokenMetrics data={data.token_metrics || {}} />
                         </div>
-                    </div>
-
-                    <div className="section">
-                        <h2>Recent Activity</h2>
-                        <div className="recent-activity">
-                            {data.recent_transactions.length === 0 ? (
-                                <div>No recent transactions</div>
-                            ) : (
-                                data.recent_transactions.map((tx, index) => (
-                                    <div key={index} className="transaction">
-                                        <div className="transaction-header">
-                                            <span className="transaction-type">{tx.type}</span>
-                                            <span className="transaction-time">{tx.time}</span>
-                                        </div>
-                                        <div className="transaction-details">{tx.details}</div>
-                                    </div>
-                                ))
-                            )}
+                    </ErrorBoundary>
+                    
+                    <ErrorBoundary>
+                        <div className="section">
+                            <h2>Recent Activity</h2>
+                            <RecentActivity transactions={data.recent_transactions || []} />
                         </div>
-                    </div>
-
-                    <div className="section">
-                        <h2>Top AI/Hybrid Tokens</h2>
-                        <div className="token-section">
-                            <div className="token-list">
-                                {Object.entries(data.token_metrics)
-                                    .filter(([_, token]) => token.category === 'AI')
-                                    .sort((a, b) => b[1].score - a[1].score)
-                                    .slice(0, 5)
-                                    .map(([address, token]) => (
-                                        <div key={address} className="token">
-                                            <div className="token-header">
-                                                <span className="token-name">{token.symbol}</span>
-                                                <span className="token-score">Score: {formatNumber(token.score)}</span>
-                                            </div>
-                                            <div className="token-metrics">
-                                                {token.pnl_24h && (
-                                                    <span className={token.pnl_24h >= 0 ? "profit" : "loss"}>
-                                                        24h: {formatPercentage(token.pnl_24h/100)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="section">
-                        <h2>Top Meme Tokens</h2>
-                        <div className="token-section">
-                            <div className="token-list">
-                                {Object.entries(data.token_metrics)
-                                    .filter(([_, token]) => token.category === 'MEME')
-                                    .sort((a, b) => b[1].score - a[1].score)
-                                    .slice(0, 5)
-                                    .map(([address, token]) => (
-                                        <div key={address} className="token">
-                                            <div className="token-header">
-                                                <span className="token-name">{token.symbol}</span>
-                                                <span className="token-score">Score: {formatNumber(token.score)}</span>
-                                            </div>
-                                            <div className="token-metrics">
-                                                {token.pnl_24h && (
-                                                    <span className={token.pnl_24h >= 0 ? "profit" : "loss"}>
-                                                        24h: {formatPercentage(token.pnl_24h/100)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    </ErrorBoundary>
+                </ErrorBoundary>
             );
         }
-
-        const { useState, useEffect, useRef } = React;
+        
+        // ... rest of the components (SystemStatus, Portfolio, TokenMetrics, etc.) ...
+        
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>

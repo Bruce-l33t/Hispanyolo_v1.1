@@ -2,63 +2,82 @@
 Position management and risk rules
 """
 import logging
-from typing import Dict, Optional, Set
+import json
+from typing import Dict, Optional, Set, List
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
+from ..models import Position, Session, DBPosition
 from ..config import (
     SCORE_THRESHOLDS, POSITION_SIZES,
     MAX_POSITIONS, MAX_AI_POSITIONS, MAX_MEME_POSITIONS,
     PROFIT_LEVELS
 )
 
-@dataclass
-class Position:
-    """Trading position data"""
-    token_address: str
-    symbol: str
-    category: str
-    entry_price: float  # SOL per token
-    tokens: float  # Number of tokens
-    entry_time: datetime
-    take_profits: list[float]
-    current_price: Optional[float] = None
-    r_pnl: float = 0.0  # Realized PNL in SOL
-    ur_pnl: float = 0.0  # Unrealized PNL in SOL
-    status: str = "ACTIVE"
-    profit_levels_hit: Set[int] = field(default_factory=set)  # Track which levels hit
-
-    @property
-    def total_pnl(self) -> float:
-        """Total PNL (realized + unrealized)"""
-        return self.r_pnl + self.ur_pnl
-
 class PositionManager:
     """Manages trading positions and risk"""
     def __init__(self):
         self.logger = logging.getLogger('position_manager')
-        self.positions: Dict[str, Position] = {}
+        self._load_positions()
         
+    def _load_positions(self):
+        """Load positions from database"""
+        self.positions: Dict[str, Position] = {}
+        session = Session()
+        try:
+            db_positions = session.query(DBPosition).all()
+            for db_pos in db_positions:
+                self.positions[db_pos.token_address] = db_pos.to_position()
+        finally:
+            session.close()
+            
+    def _save_position(self, position: Position):
+        """Save position to database"""
+        session = Session()
+        try:
+            db_position = position.to_db_model()
+            existing = session.query(DBPosition).filter_by(
+                token_address=position.token_address
+            ).first()
+            
+            if existing:
+                # Update existing
+                for key, value in db_position.__dict__.items():
+                    if key != '_sa_instance_state':
+                        setattr(existing, key, value)
+            else:
+                # Add new
+                session.add(db_position)
+                
+            session.commit()
+        except Exception as e:
+            self.logger.error(f"Error saving position: {e}")
+            session.rollback()
+            raise
+        finally:
+            session.close()
+            
     def can_open_position(self, category: str) -> bool:
         """Check if we can open a new position"""
         # Check total position limit
-        if len(self.positions) >= MAX_POSITIONS:
-            self.logger.info(f"At max positions: {len(self.positions)}/{MAX_POSITIONS}")
+        active_positions = [p for p in self.positions.values() if p.status == "ACTIVE"]
+        if len(active_positions) >= MAX_POSITIONS:
+            self.logger.info(f"At max positions: {len(active_positions)}/{MAX_POSITIONS}")
             return False
             
         # Count positions by category
         if category == "MEME":
             category_positions = len([
-                p for p in self.positions.values()
-                if p.category == "MEME" and p.status == "ACTIVE"
+                p for p in active_positions
+                if p.category == "MEME"
             ])
             if category_positions >= MAX_MEME_POSITIONS:
                 self.logger.info(f"At max MEME positions: {category_positions}/{MAX_MEME_POSITIONS}")
                 return False
         else:  # AI or HYBRID (treated as AI)
             ai_positions = len([
-                p for p in self.positions.values()
-                if (p.category in ["AI", "HYBRID"]) and p.status == "ACTIVE"
+                p for p in active_positions
+                if p.category in ["AI", "HYBRID"]
             ])
             if ai_positions >= MAX_AI_POSITIONS:
                 self.logger.info(f"At max AI positions: {ai_positions}/{MAX_AI_POSITIONS}")
@@ -86,7 +105,7 @@ class PositionManager:
         symbol: str,
         category: str,
         entry_price: float,
-        tokens: float  # Number of tokens
+        tokens: float
     ) -> Optional[Position]:
         """Open a new position"""
         try:
@@ -94,19 +113,20 @@ class PositionManager:
             if not self.can_open_position(category):
                 return None
                 
-            # Create position - removed rounding to keep full precision
+            # Create position
             position = Position(
                 token_address=token_address,
                 symbol=symbol,
                 category=category,
-                entry_price=entry_price,  # Keep full precision
-                tokens=tokens,  # Keep full precision
+                entry_price=entry_price,
+                tokens=tokens,
                 entry_time=datetime.now(timezone.utc),
                 take_profits=self.set_take_profits(entry_price)
             )
             
             # Store position
             self.positions[token_address] = position
+            self._save_position(position)
             
             self.logger.info(
                 f"Opened {category} position in {symbol} "
@@ -130,9 +150,12 @@ class PositionManager:
             if not position:
                 return None
                 
-            # Update price and unrealized PNL - removed rounding
+            # Update price and unrealized PNL
             position.current_price = current_price
             position.ur_pnl = position.tokens * (current_price - position.entry_price)
+            
+            # Save updates
+            self._save_position(position)
             
             return position
             
@@ -151,12 +174,15 @@ class PositionManager:
         if not position:
             return
             
-        # Calculate PNL for sold tokens - removed rounding
+        # Calculate PNL for sold tokens
         pnl = tokens_sold * (sell_price - position.entry_price)
         position.r_pnl += pnl
         
         # Update remaining tokens
         position.tokens -= tokens_sold
+        
+        # Save updates
+        self._save_position(position)
             
     def check_take_profits(self, position: Position) -> bool:
         """Check if position hit take profit"""
@@ -171,6 +197,8 @@ class PositionManager:
                     f"Take profit hit for {position.symbol} "
                     f"at {position.current_price:.10f} SOL"
                 )
+                position.profit_levels_hit.add(i)
+                self._save_position(position)
                 return True
                 
         return False
@@ -184,6 +212,7 @@ class PositionManager:
                 
             # Mark position as closed
             position.status = "CLOSED"
+            self._save_position(position)
             
             self.logger.info(
                 f"Closed position in {position.symbol} "
@@ -197,7 +226,7 @@ class PositionManager:
             self.logger.error(f"Error closing position: {e}")
             return None
             
-    def get_active_positions(self) -> list[Position]:
+    def get_active_positions(self) -> List[Position]:
         """Get all active positions"""
         return [
             p for p in self.positions.values()
@@ -208,7 +237,7 @@ class PositionManager:
         """Get position summary stats"""
         active = self.get_active_positions()
         
-        # Calculate PNL values without rounding
+        # Calculate PNL values
         total_pnl = sum(p.total_pnl for p in self.positions.values())
         realized_pnl = sum(p.r_pnl for p in self.positions.values())
         unrealized_pnl = sum(p.ur_pnl for p in self.positions.values())

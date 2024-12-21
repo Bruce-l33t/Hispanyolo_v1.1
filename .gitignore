@@ -45,6 +45,8 @@ logs/
 .coverage
 .DS_Store
 crystalized_wallets.csv
+*.db
+positions.db
 
 # Distribution / packaging
 .Python
@@ -63,3 +65,4 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+DEPLOYMENT_INFO.md

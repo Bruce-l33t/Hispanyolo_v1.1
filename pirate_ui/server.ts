@@ -1,144 +1,170 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { EventEmitter } from 'events';
 
-// Create HTTP server
-const server = createServer((req, res) => {
-  if (req.url === '/') {
-    const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
-  }
-  else if (req.url === '/formatting.js') {
-    const js = readFileSync(join(__dirname, 'formatting.js'), 'utf8');
-    res.writeHead(200, { 'Content-Type': 'application/javascript' });
-    res.end(js);
-  }
-});
-
-// Create WebSocket server
-const wss = new WebSocketServer({ server });
-
-// Store connected clients
-const clients = new Set<WebSocket>();
-
-// Current state
-let currentState = {
-  token_metrics: {},
-  active_positions: [],  // Changed from positions object to array
-  recent_transactions: [],
-  wallet_status: {
-    VERY_ACTIVE: 0,
-    ACTIVE: 0,
-    WATCHING: 0,
-    ASLEEP: 0
-  },
-  wallets_checked: 0,
-  transactions_processed: 0,
-  start_time: new Date().toISOString()
-};
-
-function heartbeat(this: WebSocket) {
-  (this as any).isAlive = true;
+interface Position {
+    token_address: string;
+    symbol: string;
+    category: string;
+    entry_price: number;
+    current_price: number;
+    tokens: number;
+    entry_time: string;
+    r_pnl: number;
+    ur_pnl: number;
+    status: string;
+    take_profits: number[];
+    profit_levels_hit: number[];
 }
 
-// Handle WebSocket connections
-wss.on('connection', (ws: WebSocket) => {
-  console.log('Client connected');
-  (ws as any).isAlive = true;
-  clients.add(ws);
+interface SystemState {
+    positions: { [key: string]: Position };
+    token_metrics: any;
+    wallet_status: any;
+    wallets_checked: number;
+    transactions_processed: number;
+    recent_transactions: any[];
+}
 
-  // Handle pong messages
-  ws.on('pong', heartbeat);
+class UIServer {
+    private wss: WebSocketServer;
+    private clients: Set<WebSocket>;
+    private state: SystemState;
+    private eventEmitter: EventEmitter;
+    private reconnectTimeouts: Map<WebSocket, NodeJS.Timeout>;
 
-  // Send initial state
-  ws.send(JSON.stringify(currentState));
-
-  // Handle incoming messages
-  ws.on('message', (message: string) => {
-    try {
-      const data = JSON.parse(message.toString());
-      console.log('Received update:', Object.keys(data));
-
-      // Handle position updates
-      if (data.active_positions) {
-        console.log('\nPosition update:');
-        console.log('New positions:', data.active_positions.length);
-        currentState.active_positions = data.active_positions;
-      }
-      
-      // Handle token metrics updates
-      else if (data.token_metrics) {
-        console.log('\nToken metrics update:');
-        console.log('Current metrics:', Object.keys(currentState.token_metrics).length, 'tokens');
-        console.log('New metrics:', Object.keys(data.token_metrics).length, 'tokens');
+    constructor() {
+        const server = createServer();
+        this.wss = new WebSocketServer({ server });
+        this.clients = new Set();
+        this.reconnectTimeouts = new Map();
+        this.eventEmitter = new EventEmitter();
         
-        currentState.token_metrics = {
-          ...currentState.token_metrics,
-          ...data.token_metrics
+        // Initialize state
+        this.state = {
+            positions: {},
+            token_metrics: {},
+            wallet_status: {},
+            wallets_checked: 0,
+            transactions_processed: 0,
+            recent_transactions: []
         };
-      }
-      
-      // Handle other updates
-      else {
-        currentState = {
-          ...currentState,
-          ...data
-        };
-      }
-
-      // Broadcast the update to all clients
-      broadcast(currentState);
-    } catch (error) {
-      console.error('Error processing message:', error);
-      console.error('Raw message:', message.toString());
+        
+        this.setupWebSocket();
+        server.listen(8000);
     }
-  });
 
-  ws.on('close', () => {
-    console.log('Client disconnected');
-    clients.delete(ws);
-  });
-
-  ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
-    clients.delete(ws);
-  });
-});
-
-// Broadcast updates to all clients
-function broadcast(data: any) {
-  const message = JSON.stringify(data);
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  }
-}
-
-// Ping clients every 30 seconds
-const interval = setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if ((ws as any).isAlive === false) {
-      console.log('Terminating inactive client');
-      return ws.terminate();
+    private setupWebSocket() {
+        this.wss.on('connection', (ws: WebSocket) => {
+            console.log('Client connected');
+            this.clients.add(ws);
+            
+            // Send full state on connection
+            this.sendFullState(ws);
+            
+            ws.on('message', (message: string) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    if (data.type === 'request_full_state') {
+                        this.sendFullState(ws);
+                    }
+                } catch (error) {
+                    console.error('Error processing message:', error);
+                }
+            });
+            
+            ws.on('close', () => {
+                console.log('Client disconnected');
+                this.clients.delete(ws);
+                
+                // Clear any existing reconnect timeout
+                const timeout = this.reconnectTimeouts.get(ws);
+                if (timeout) {
+                    clearTimeout(timeout);
+                    this.reconnectTimeouts.delete(ws);
+                }
+            });
+            
+            ws.on('error', (error) => {
+                console.error('WebSocket error:', error);
+                this.handleError(ws);
+            });
+        });
     }
     
-    (ws as any).isAlive = false;
-    ws.ping();
-  });
-}, 30000);
+    private handleError(ws: WebSocket) {
+        // Remove client and attempt reconnect
+        this.clients.delete(ws);
+        
+        // Clear any existing reconnect timeout
+        const existingTimeout = this.reconnectTimeouts.get(ws);
+        if (existingTimeout) {
+            clearTimeout(existingTimeout);
+        }
+        
+        // Set new reconnect timeout
+        const timeout = setTimeout(() => {
+            if (ws.readyState === WebSocket.CLOSED) {
+                ws.close();
+                this.reconnectTimeouts.delete(ws);
+            }
+        }, 5000);
+        
+        this.reconnectTimeouts.set(ws, timeout);
+    }
+    
+    private sendFullState(ws: WebSocket) {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'full_state',
+                data: this.state
+            }));
+        }
+    }
+    
+    private broadcast(data: any) {
+        const message = JSON.stringify(data);
+        for (const client of this.clients) {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        }
+    }
+    
+    public updatePositions(positions: { [key: string]: Position }) {
+        this.state.positions = positions;
+        this.broadcast({ positions });
+    }
+    
+    public updateTokenMetrics(metrics: any) {
+        this.state.token_metrics = metrics;
+        this.broadcast({ token_metrics: metrics });
+    }
+    
+    public updateWalletStatus(status: any) {
+        this.state.wallet_status = status;
+        this.broadcast({ wallet_status: status });
+    }
+    
+    public updateSystemMetrics(metrics: { 
+        wallets_checked: number;
+        transactions_processed: number;
+    }) {
+        this.state.wallets_checked = metrics.wallets_checked;
+        this.state.transactions_processed = metrics.transactions_processed;
+        this.broadcast({ 
+            wallets_checked: metrics.wallets_checked,
+            transactions_processed: metrics.transactions_processed
+        });
+    }
+    
+    public addTransaction(transaction: any) {
+        this.state.recent_transactions.unshift(transaction);
+        this.state.recent_transactions = this.state.recent_transactions.slice(0, 50);
+        this.broadcast({ 
+            recent_transactions: this.state.recent_transactions 
+        });
+    }
+}
 
-wss.on('close', () => {
-  clearInterval(interval);
-});
-
-// Start server
-const PORT = 8000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// Export for external use
-export { broadcast };
+export const uiServer = new UIServer();
