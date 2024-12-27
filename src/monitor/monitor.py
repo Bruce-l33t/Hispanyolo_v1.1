@@ -247,9 +247,23 @@ class WhaleMonitor:
     async def process_wallet_batch(self, wallets: List[str], initial_scan: bool = False):
         """Process a batch of wallets concurrently"""
         try:
-            tasks = [self.process_wallet(wallet, initial_scan) for wallet in wallets]
+            # Filter wallets based on check intervals
+            wallets_to_check = [
+                w for w in wallets 
+                if self.wallet_manager.should_check_wallet(w)
+            ]
+            
+            if not wallets_to_check:
+                return
+                
+            tasks = [self.process_wallet(wallet, initial_scan) for wallet in wallets_to_check]
             await asyncio.gather(*tasks)
-            self.logger.info(f"Processed batch of {len(wallets)} wallets")
+            
+            # Update last check time for processed wallets
+            now = datetime.now(timezone.utc)
+            for wallet in wallets_to_check:
+                self.wallet_manager.last_check_time[wallet] = now
+                
         except Exception as e:
             self.logger.error(f"Error processing wallet batch: {e}")
 
@@ -275,9 +289,6 @@ class WhaleMonitor:
                         await self.process_wallet_batch(batch)
                         await asyncio.sleep(0.1)  # Small delay between batches
                 
-                # Short gap for active wallets
-                await asyncio.sleep(30)  # 30 second gap
-                
             except Exception as e:
                 self.logger.error(f"Error in active wallet monitoring: {e}")
                 await asyncio.sleep(5)  # Brief pause on error
@@ -299,9 +310,6 @@ class WhaleMonitor:
                         await self.process_wallet_batch(batch)
                         await asyncio.sleep(1)  # Longer delay between batches
                 
-                # Hourly check for watching wallets
-                await asyncio.sleep(3600)  # 1 hour gap
-                
             except Exception as e:
                 self.logger.error(f"Error in watching wallet monitoring: {e}")
                 await asyncio.sleep(60)  # Longer pause on error
@@ -322,9 +330,6 @@ class WhaleMonitor:
                     for batch in batches:
                         await self.process_wallet_batch(batch)
                         await asyncio.sleep(2)  # Even longer delay between batches
-                
-                # Check asleep wallets every 4 hours
-                await asyncio.sleep(14400)  # 4 hour gap
                 
             except Exception as e:
                 self.logger.error(f"Error in asleep wallet monitoring: {e}")

@@ -11,12 +11,13 @@ from sqlalchemy.orm import sessionmaker
 
 Base = declarative_base()
 
-class WalletStatus(str, Enum):
+class WalletStatus(Enum):
     """Wallet activity status"""
-    VERY_ACTIVE = "VERY_ACTIVE"
-    ACTIVE = "ACTIVE"
-    WATCHING = "WATCHING"
-    ASLEEP = "ASLEEP"
+    VERY_ACTIVE = 'VERY_ACTIVE'   # Active in last 1 hour
+    ACTIVE = 'ACTIVE'             # Active in last 2 hours
+    WATCHING = 'WATCHING'         # Active in last 12 hours
+    ASLEEP = 'ASLEEP'            # Active in last 5 days
+    DORMANT = 'DORMANT'          # Not active in 5+ days
 
 # SQLAlchemy Position Model for persistence
 class DBPosition(Base):

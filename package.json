@@ -3,22 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node pirate_ui/server.ts"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@types/node": "^22.10.1",
-    "typescript": "^5.7.2",
-    "uuid": "^11.0.3",
-    "ws": "^8.14.2"
-  },
-  "devDependencies": {
-    "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.5.13",
-    "ts-node": "^10.9.2"
-  }
+  "description": ""
 }

@@ -297,3 +297,30 @@ class TradingSystem:
         except Exception as e:
             self.logger.error(f"Error in trading loop: {e}")
             raise
+
+    async def execute_take_profit(self, position, current_price):
+        """Execute take profit based on current price and predefined levels"""
+        take_profit_levels = [1.6, 2.4]  # Initial levels: 60%, 120%
+        multiplier = 2.0  # 2x multiplier for continuous levels
+
+        # Calculate dynamic take profit levels
+        while True:
+            last_level = take_profit_levels[-1]
+            next_level = last_level * multiplier
+            if current_price >= position.entry_price * next_level:
+                take_profit_levels.append(next_level)
+            else:
+                break
+
+        # Execute take profit
+        for level in take_profit_levels:
+            if current_price >= position.entry_price * level:
+                # Sell 25% of the current position
+                sell_amount = position.tokens * 0.25
+                position.tokens -= sell_amount
+                position.r_pnl += sell_amount * (current_price - position.entry_price)
+                position.ur_pnl = (position.tokens * (current_price - position.entry_price))
+                self.logger.info(f"Take profit executed at {level * 100 - 100}% - Sold {sell_amount} tokens")
+
+                # Emit position update
+                await self.emit_position_update()
