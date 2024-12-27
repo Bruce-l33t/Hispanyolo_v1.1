@@ -65,8 +65,5 @@ EVENT_TYPES = {
     
     # Token events
     'token_metrics',      # Token metrics updates
-    'transaction',        # New transactions
-    
-    # UI events
-    'ui_update'          # UI state updates
+    'transaction'         # New transactions
 }
