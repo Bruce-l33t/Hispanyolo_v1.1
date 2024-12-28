@@ -362,22 +362,33 @@ class WhaleMonitor:
             # Load wallet scores
             self.wallet_manager.load_wallet_scores()
             
-            # Get list of wallets to monitor
-            wallets_to_monitor = list(self.wallet_manager.wallet_scores.keys())
-            
-            # Initial scan
-            self.logger.info("Starting initial scan...")
-            initial_scan_batch = random.sample(
-                wallets_to_monitor,
-                min(50, len(wallets_to_monitor))
+            # Get list of wallets to monitor, sorted by score (highest to lowest)
+            wallets_to_monitor = sorted(
+                self.wallet_manager.wallet_scores.keys(),
+                key=lambda x: self.wallet_manager.wallet_scores.get(x, 0),
+                reverse=True
             )
             
+            # Initial scan of all wallets
+            self.logger.info("Starting initial scan...")
+            self.logger.info(f"Preparing to scan {len(wallets_to_monitor)} wallets in order of score...")
+            
             # Process initial scan in batches
-            self.logger.info(f"Scanning {len(initial_scan_batch)} wallets for recent activity...")
-            initial_batches = self.get_wallet_batches(initial_scan_batch)
-            for batch in initial_batches:
+            initial_batches = self.get_wallet_batches(wallets_to_monitor)
+            total_batches = len(initial_batches)
+            
+            for i, batch in enumerate(initial_batches, 1):
+                self.logger.info(
+                    f"Processing batch {i}/{total_batches} "
+                    f"({len(batch)} wallets, "
+                    f"progress: {((i-1)/total_batches)*100:.1f}%)"
+                )
                 await self.process_wallet_batch(batch, True)
-            self.logger.info("Initial scan complete")
+                await asyncio.sleep(0.1)  # Small delay between batches
+                
+            self.logger.info(
+                f"Initial scan complete - processed {len(wallets_to_monitor)} wallets"
+            )
             
             # Start monitoring tasks
             self.monitoring_tasks = [
