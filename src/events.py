@@ -54,13 +54,9 @@ event_bell = EventSystem()
 
 # Core event types
 EVENT_TYPES = {
-    # System events
-    'system_update',      # System status updates
-    'wallet_status',      # Wallet status changes
-    
     # Trading events
     'trading_signal',     # Trading signals
-    'position_update',    # Position changes
+    'position_update',    # Position changes (used for logging and monitoring)
     'trade_executed',     # Trade execution
     
     # Token events

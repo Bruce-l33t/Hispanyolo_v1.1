@@ -92,9 +92,6 @@ class TradingSystem:
                             position.token_address,
                             price  # Use execution price as initial current price
                         )
-                        
-                        # Emit position update
-                        await self.emit_position_update()
                 else:
                     self.logger.error("Invalid price from quote")
             else:
@@ -177,9 +174,6 @@ class TradingSystem:
                         f"Partial take profit executed - "
                         f"Remaining tokens: {position.tokens}"
                     )
-                    
-                # Emit position update
-                await self.emit_position_update()
                 return True
                 
             if attempt < max_retries - 1:
@@ -242,38 +236,6 @@ class TradingSystem:
         except Exception as e:
             self.logger.error(f"Error updating positions: {e}")
             
-    async def emit_position_update(self):
-        """Emit position update event"""
-        try:
-            # Get position summary
-            summary = self.position_manager.get_position_summary()
-            
-            # Add active positions data
-            active_positions = []
-            for position in self.position_manager.get_active_positions():
-                active_positions.append({
-                    'token_address': position.token_address,
-                    'symbol': position.symbol,
-                    'category': position.category,
-                    'entry_price': position.entry_price,
-                    'current_price': position.current_price,
-                    'tokens': position.tokens,
-                    'r_pnl': position.r_pnl,
-                    'ur_pnl': position.ur_pnl,
-                    'total_pnl': position.total_pnl,
-                    'entry_time': position.entry_time.isoformat()
-                })
-                
-            # Emit update
-            await event_bell.publish('position_update', {
-                'summary': summary,
-                'active_positions': active_positions,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            })
-            
-        except Exception as e:
-            self.logger.error(f"Error emitting position update: {e}")
-            
     async def run(self):
         """Main trading loop"""
         self.logger.info("Starting trading system...")
@@ -298,29 +260,50 @@ class TradingSystem:
             self.logger.error(f"Error in trading loop: {e}")
             raise
 
-    async def execute_take_profit(self, position, current_price):
-        """Execute take profit based on current price and predefined levels"""
-        take_profit_levels = [1.6, 2.4]  # Initial levels: 60%, 120%
-        multiplier = 2.0  # 2x multiplier for continuous levels
+    async def emit_position_update(self):
+        """Log and emit position updates"""
+        try:
+            # Get position summary
+            summary = self.position_manager.get_position_summary()
+            
+            # Get active positions data
+            active_positions = []
+            for position in self.position_manager.get_active_positions():
+                active_positions.append({
+                    'token_address': position.token_address,
+                    'symbol': position.symbol,
+                    'category': position.category,
+                    'entry_price': position.entry_price,
+                    'current_price': position.current_price,
+                    'tokens': position.tokens,
+                    'r_pnl': position.r_pnl,
+                    'ur_pnl': position.ur_pnl,
+                    'total_pnl': position.total_pnl,
+                    'entry_time': position.entry_time.isoformat()
+                })
+                
+            # Log the update
+            self.logger.info("Position Update Summary:")
+            self.logger.info(f"Total PNL: {summary['total_pnl']:.4f} SOL")
+            self.logger.info(f"Realized PNL: {summary['realized_pnl']:.4f} SOL")
+            self.logger.info(f"Unrealized PNL: {summary['unrealized_pnl']:.4f} SOL")
+            self.logger.info(f"Active Positions: {len(active_positions)}")
+            
+            for pos in active_positions:
+                self.logger.info(
+                    f"Position: {pos['symbol']} - "
+                    f"Entry: {pos['entry_price']:.4f} - "
+                    f"Current: {pos['current_price']:.4f} - "
+                    f"PNL: {pos['total_pnl']:.4f} SOL"
+                )
+                
+            # Emit the position update event
+            await event_bell.publish('position_update', {
+                'summary': summary,
+                'active_positions': active_positions,
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            })
+                
+        except Exception as e:
+            self.logger.error(f"Error in position update: {e}")
 
-        # Calculate dynamic take profit levels
-        while True:
-            last_level = take_profit_levels[-1]
-            next_level = last_level * multiplier
-            if current_price >= position.entry_price * next_level:
-                take_profit_levels.append(next_level)
-            else:
-                break
-
-        # Execute take profit
-        for level in take_profit_levels:
-            if current_price >= position.entry_price * level:
-                # Sell 25% of the current position
-                sell_amount = position.tokens * 0.25
-                position.tokens -= sell_amount
-                position.r_pnl += sell_amount * (current_price - position.entry_price)
-                position.ur_pnl = (position.tokens * (current_price - position.entry_price))
-                self.logger.info(f"Take profit executed at {level * 100 - 100}% - Sold {sell_amount} tokens")
-
-                # Emit position update
-                await self.emit_position_update()
