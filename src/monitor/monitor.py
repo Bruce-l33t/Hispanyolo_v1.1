@@ -14,8 +14,7 @@ from ..config import (
     WSOL_ADDRESS, USDC_ADDRESS, IGNORED_TOKENS,
     MIN_SOL_AMOUNT, BIRDEYE_SETTINGS
 )
-from ..events import event_bell
-from ..models import Transaction, WalletStatus
+from ..models import WalletStatus
 from .wallet_manager import WalletManager
 from .token_metrics import TokenMetricsManager
 import dontshare as d
@@ -39,13 +38,13 @@ class WhaleMonitor:
         now = datetime.now(timezone.utc)
         
         if initial_scan:
-            # For initial scan, start from current time
-            start_time = now
-            self.logger.info(f"Initial scan for {wallet[:8]}, starting from current time")
+            # For initial scan, look back 15 minutes
+            start_time = now - timedelta(minutes=15)
+            self.logger.info(f"Initial scan for {wallet[:8]}, looking back 15 minutes")
         elif wallet not in self.last_processed_time:
-            # For new wallets, start from current time
-            start_time = now
-            self.logger.info(f"New wallet {wallet[:8]}, starting from current time")
+            # For new wallets, look back 15 minutes
+            start_time = now - timedelta(minutes=15)
+            self.logger.info(f"New wallet {wallet[:8]}, looking back 15 minutes")
         else:
             # For regular scans, look back to last processed time
             start_time = self.last_processed_time[wallet]
@@ -247,23 +246,9 @@ class WhaleMonitor:
     async def process_wallet_batch(self, wallets: List[str], initial_scan: bool = False):
         """Process a batch of wallets concurrently"""
         try:
-            # Filter wallets based on check intervals
-            wallets_to_check = [
-                w for w in wallets 
-                if self.wallet_manager.should_check_wallet(w)
-            ]
-            
-            if not wallets_to_check:
-                return
-                
-            tasks = [self.process_wallet(wallet, initial_scan) for wallet in wallets_to_check]
+            tasks = [self.process_wallet(wallet, initial_scan) for wallet in wallets]
             await asyncio.gather(*tasks)
-            
-            # Update last check time for processed wallets
-            now = datetime.now(timezone.utc)
-            for wallet in wallets_to_check:
-                self.wallet_manager.last_check_time[wallet] = now
-                
+            self.logger.info(f"Processed batch of {len(wallets)} wallets")
         except Exception as e:
             self.logger.error(f"Error processing wallet batch: {e}")
 
@@ -271,30 +256,56 @@ class WhaleMonitor:
         """Split wallets into batches for processing"""
         return [wallets[i:i + self.batch_size] for i in range(0, len(wallets), self.batch_size)]
 
+    async def monitor_very_active_wallets(self):
+        """Monitor VERY_ACTIVE wallets every 15 minutes"""
+        self.logger.info("Starting very active wallet monitoring...")
+        while self.is_running:
+            try:
+                # Get very active wallets
+                very_active_wallets = [
+                    addr for addr, tier in self.wallet_manager.wallet_tiers.items()
+                    if tier.status == WalletStatus.VERY_ACTIVE
+                ]
+                
+                if very_active_wallets:
+                    batches = self.get_wallet_batches(very_active_wallets)
+                    for batch in batches:
+                        await self.process_wallet_batch(batch)
+                        await asyncio.sleep(1)  # Small delay between batches
+                
+                # 15 minute gap for very active wallets
+                await asyncio.sleep(900)  # 15 minutes
+                
+            except Exception as e:
+                self.logger.error(f"Error in very active wallet monitoring: {e}")
+                await asyncio.sleep(5)  # Brief pause on error
+
     async def monitor_active_wallets(self):
-        """Monitor VERY_ACTIVE and ACTIVE wallets"""
+        """Monitor ACTIVE wallets every 30 minutes"""
         self.logger.info("Starting active wallet monitoring...")
         while self.is_running:
             try:
                 # Get active wallets
                 active_wallets = [
                     addr for addr, tier in self.wallet_manager.wallet_tiers.items()
-                    if tier.status in [WalletStatus.VERY_ACTIVE, WalletStatus.ACTIVE]
+                    if tier.status == WalletStatus.ACTIVE
                 ]
                 
                 if active_wallets:
-                    # Process in smaller batches
                     batches = self.get_wallet_batches(active_wallets)
                     for batch in batches:
                         await self.process_wallet_batch(batch)
-                        await asyncio.sleep(0.1)  # Small delay between batches
+                        await asyncio.sleep(1)  # Small delay between batches
+                
+                # 30 minute gap for active wallets
+                await asyncio.sleep(1800)  # 30 minutes
                 
             except Exception as e:
                 self.logger.error(f"Error in active wallet monitoring: {e}")
                 await asyncio.sleep(5)  # Brief pause on error
 
     async def monitor_watching_wallets(self):
-        """Monitor WATCHING wallets"""
+        """Monitor WATCHING wallets every 2 hours"""
         self.logger.info("Starting watching wallet monitoring...")
         while self.is_running:
             try:
@@ -308,7 +319,10 @@ class WhaleMonitor:
                     batches = self.get_wallet_batches(watching_wallets)
                     for batch in batches:
                         await self.process_wallet_batch(batch)
-                        await asyncio.sleep(1)  # Longer delay between batches
+                        await asyncio.sleep(1)  # Small delay between batches
+                
+                # 2 hour gap for watching wallets
+                await asyncio.sleep(7200)  # 2 hours
                 
             except Exception as e:
                 self.logger.error(f"Error in watching wallet monitoring: {e}")
@@ -330,6 +344,9 @@ class WhaleMonitor:
                     for batch in batches:
                         await self.process_wallet_batch(batch)
                         await asyncio.sleep(2)  # Even longer delay between batches
+                
+                # Check asleep wallets every 4 hours
+                await asyncio.sleep(14400)  # 4 hour gap
                 
             except Exception as e:
                 self.logger.error(f"Error in asleep wallet monitoring: {e}")
@@ -362,36 +379,23 @@ class WhaleMonitor:
             # Load wallet scores
             self.wallet_manager.load_wallet_scores()
             
-            # Get list of wallets to monitor, sorted by score (highest to lowest)
-            wallets_to_monitor = sorted(
-                self.wallet_manager.wallet_scores.keys(),
-                key=lambda x: self.wallet_manager.wallet_scores.get(x, 0),
-                reverse=True
-            )
+            # Get list of wallets to monitor
+            wallets_to_monitor = list(self.wallet_manager.wallet_scores.keys())
             
-            # Initial scan of all wallets
+            # Initial scan
             self.logger.info("Starting initial scan...")
-            self.logger.info(f"Preparing to scan {len(wallets_to_monitor)} wallets in order of score...")
+            initial_scan_batch = wallets_to_monitor  # Scan all wallets
             
             # Process initial scan in batches
-            initial_batches = self.get_wallet_batches(wallets_to_monitor)
-            total_batches = len(initial_batches)
-            
-            for i, batch in enumerate(initial_batches, 1):
-                self.logger.info(
-                    f"Processing batch {i}/{total_batches} "
-                    f"({len(batch)} wallets, "
-                    f"progress: {((i-1)/total_batches)*100:.1f}%)"
-                )
+            self.logger.info(f"Scanning {len(initial_scan_batch)} wallets for recent activity...")
+            initial_batches = self.get_wallet_batches(initial_scan_batch)
+            for batch in initial_batches:
                 await self.process_wallet_batch(batch, True)
-                await asyncio.sleep(0.1)  # Small delay between batches
-                
-            self.logger.info(
-                f"Initial scan complete - processed {len(wallets_to_monitor)} wallets"
-            )
+            self.logger.info("Initial scan complete")
             
             # Start monitoring tasks
             self.monitoring_tasks = [
+                asyncio.create_task(self.monitor_very_active_wallets()),
                 asyncio.create_task(self.monitor_active_wallets()),
                 asyncio.create_task(self.monitor_watching_wallets()),
                 asyncio.create_task(self.monitor_asleep_wallets()),
