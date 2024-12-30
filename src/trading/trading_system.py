@@ -23,10 +23,13 @@ class TradingSystem:
     """
     def __init__(self):
         self.logger = logging.getLogger('trading_system')
+        # Set debug level for trading system
+        self.logger.setLevel(logging.DEBUG)
         self.signal_processor = SignalProcessor()
         self.position_manager = PositionManager()
         self.trader = AlchemyTrader()
         self.price_service = PriceService()
+        self.logger.debug("TradingSystem initialized")
         
     async def handle_signal(self, signal: dict):
         """
@@ -261,14 +264,18 @@ class TradingSystem:
             raise
 
     async def emit_position_update(self):
-        """Log and emit position updates"""
+        """Log position updates"""
         try:
+            self.logger.debug("Starting position update emission")
+            
             # Get position summary
             summary = self.position_manager.get_position_summary()
+            self.logger.debug(f"Got position summary: {summary}")
             
             # Get active positions data
             active_positions = []
             for position in self.position_manager.get_active_positions():
+                self.logger.debug(f"Processing position: {position.symbol}")
                 active_positions.append({
                     'token_address': position.token_address,
                     'symbol': position.symbol,
@@ -296,13 +303,6 @@ class TradingSystem:
                     f"Current: {pos['current_price']:.4f} - "
                     f"PNL: {pos['total_pnl']:.4f} SOL"
                 )
-                
-            # Emit the position update event
-            await event_bell.publish('position_update', {
-                'summary': summary,
-                'active_positions': active_positions,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            })
                 
         except Exception as e:
             self.logger.error(f"Error in position update: {e}")
