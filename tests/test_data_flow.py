@@ -1,6 +1,6 @@
 """
 Integration tests for complete data flow
-Tests actual data formats from components through to UI
+Tests actual data formats through the event system
 """
 import pytest
 import asyncio
@@ -15,7 +15,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.monitor.token_metrics import TokenMetricsManager
 from src.models import TokenMetrics
-from src.ui_client import UIClient
 from src.events import event_bell
 
 class TestDataFlow:
@@ -37,17 +36,10 @@ class TestDataFlow:
         
         manager.token_metrics[token_address] = metrics
         return manager
-        
-    @pytest.fixture
-    async def ui_client(self):
-        """Create UI client"""
-        client = UIClient()
-        await client.connect()
-        return client
 
     @pytest.mark.asyncio
-    async def test_metrics_data_flow(self, token_metrics_manager, ui_client):
-        """Test complete flow of metrics data"""
+    async def test_metrics_data_flow(self, token_metrics_manager):
+        """Test complete flow of metrics data through event system"""
         # 1. Get metrics data as emitted by TokenMetricsManager
         await token_metrics_manager.emit_metrics_update()
         
@@ -82,9 +74,3 @@ class TestDataFlow:
         # 4. Verify data was received correctly
         assert received_data is not None
         verify_metrics_format(received_data)
-        
-        # 5. Verify UI client sends correct format
-        await ui_client.update_token_metrics(received_data['token_metrics'])
-        
-        # 6. Clean up
-        await ui_client.close()

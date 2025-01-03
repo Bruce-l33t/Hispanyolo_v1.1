@@ -49,7 +49,7 @@ class PriceService:
                 
             # Calculate price directly from quote amounts
             in_amount = float(quote['inAmount']) / 1e9  # Convert lamports to SOL
-            out_amount = float(quote['outAmount']) / 1e9  # Convert to actual tokens
+            out_amount = float(quote['outAmount']) / 1e6  # Convert to actual tokens (6 decimals)
             price = in_amount / out_amount if out_amount > 0 else 0
             
             return price

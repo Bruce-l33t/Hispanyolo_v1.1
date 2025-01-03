@@ -17,6 +17,8 @@ class EventSystem:
     def __init__(self):
         self.subscribers: Dict[str, List[Callable]] = {}
         self.logger = logging.getLogger('events')
+        # Set debug level for events
+        self.logger.setLevel(logging.DEBUG)
 
     async def publish(self, event_type: str, data: Dict[str, Any]):
         """
@@ -24,16 +26,18 @@ class EventSystem:
         No transformations, no middleware
         """
         if event_type not in self.subscribers:
+            self.logger.debug(f"No subscribers for event type: {event_type}")
             return
 
-        self.logger.debug(f"Publishing {event_type} event")
+        self.logger.debug(f"Publishing {event_type} event with data: {data}")
         
         # Direct emission to subscribers
         for subscriber in self.subscribers[event_type]:
             try:
+                self.logger.debug(f"Calling subscriber for {event_type}: {subscriber.__name__ if hasattr(subscriber, '__name__') else str(subscriber)}")
                 await subscriber(data)
             except Exception as e:
-                self.logger.error(f"Error in subscriber for {event_type}: {e}")
+                self.logger.error(f"Error in subscriber for {event_type}: {e}", exc_info=True)
 
     async def subscribe(self, event_type: str, callback: Callable):
         """Subscribe to event type"""

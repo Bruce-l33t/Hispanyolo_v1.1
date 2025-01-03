@@ -1,125 +1,95 @@
-# Pirate3 Documentation
+# Hispanyolo Trading System
+
+A sophisticated trading system for monitoring and acting on whale wallet activity in the Solana ecosystem.
+
+## System Overview
+
+The system consists of several core components:
+
+1. **Wallet Monitoring**
+   - Tracks high-value wallet activity
+   - Uses scoring system to identify significant wallets
+   - Real-time transaction monitoring
+
+2. **Trading System**
+   - Automated position management
+   - Dynamic take-profit levels
+   - Risk management controls
+
+3. **Token Metrics**
+   - Token categorization
+   - Volume tracking
+   - Price impact analysis
+
+## Key Features
+
+- Real-time whale wallet monitoring
+- Automated trading based on whale activity
+- Dynamic position management
+- Multi-level take-profit system
+- Token categorization and scoring
+- Comprehensive logging and monitoring
 
 ## Getting Started
 
-### 1. Core Documents
-1. [Core Requirements](CORE_REQUIREMENTS.md)
-   - Essential features
-   - Must-have functionality
-   - Success criteria
+### Prerequisites
+- Python 3.12
+- Node.js (for PM2)
+- Git
 
-2. [Implementation Approach](IMPLEMENTATION_APPROACH.md)
-   - System architecture
-   - Component design
-   - Implementation flow
+### Installation
 
-3. [AI Implementation Guide](AI_IMPLEMENTATION_GUIDE.md)
-   - Document reading order
-   - Implementation steps
-   - Best practices
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/Hispanyolo_v1.git
+cd Hispanyolo_v1
+```
 
-### 2. Component Documentation
-1. [Token Metrics Analysis](TOKEN_METRICS_ANALYSIS.md)
-   - Score tracking
-   - Signal generation
-   - Categorization
+2. Set up Python environment:
+```bash
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-2. [Birdeye Integration](BIRDEYE_INTEGRATION.md)
-   - API integration
-   - Error handling
-   - Data processing
+3. Install PM2:
+```bash
+npm install -g pm2
+```
 
-3. [Trading System](TRADING_SYSTEM.md)
-   - Position management
-   - Risk rules
-   - Trade execution
+4. Configure settings:
+- Copy `dontshare.py.example` to `dontshare.py`
+- Add your API keys and configuration
 
-4. [UI System Analysis](UI_SYSTEM_ANALYSIS.md)
-   - Real-time updates
-   - Component structure
-   - State management
+### Deployment
 
-### 3. Lessons & Evolution
-1. [Lessons for Pirate3](alex/LESSONS_FOR_PIRATE3.md)
-   - Key learnings
-   - What worked
-   - What to avoid
+See [DEPLOYMENT.md](setup/DEPLOYMENT.md) for detailed deployment instructions.
 
-2. [Evolution Insights](alex/EVOLUTION_INSIGHTS.md)
-   - System evolution
-   - Architecture improvements
-   - Past challenges
+## System Monitoring
 
-## Implementation Order
+### Check System Status
+```bash
+pm2 status
+pm2 logs
+```
 
-### 1. Start Here
-1. Read CORE_REQUIREMENTS.md
-2. Review IMPLEMENTATION_APPROACH.md
-3. Follow AI_IMPLEMENTATION_GUIDE.md
+### Check Positions
+```bash
+source venv/bin/activate
+python3 src/position_manager.py --check
+```
 
-### 2. Component Implementation
-1. Monitor:
-   - Wallet tracking
-   - Transaction processing
-   - Score updates
+## Documentation
 
-2. Trading:
-   - Signal handling
-   - Position management
-   - Trade execution
+- [Setup Guide](setup/INSTALLATION.md)
+- [System Architecture](architecture/SYSTEM_OVERVIEW.md)
+- [Operations Guide](operations/MONITORING.md)
+- [Development Guide](development/API_INTEGRATION.md)
 
-3. UI:
-   - Basic status
-   - Position view
-   - Signal display
+## Future Development
 
-## Key Principles
+See [FUTURE_IMPROVEMENTS.md](roadmap/FUTURE_IMPROVEMENTS.md) for upcoming features and improvements.
 
-### 1. Keep It Simple
-- Focus on core features
-- Direct implementation
-- Clear testing
+## License
 
-### 2. Build Quality
-- Reliable code
-- Good error handling
-- Proper testing
-
-### 3. Stay Focused
-- Essential features first
-- Must-have functionality
-- Clear requirements
-
-## Success Metrics
-
-### 1. Functionality
-- Core features working
-- Essential requirements met
-- Reliable operation
-
-### 2. Code Quality
-- Simple and clear
-- Well-tested
-- Easy to maintain
-
-### 3. Performance
-- Quick response
-- Reliable execution
-- Error recovery
-
-## Remember
-
-1. Start Simple:
-   - Essential features first
-   - Clear implementation
-   - Direct flow
-
-2. Stay Focused:
-   - Core requirements
-   - Must-have features
-   - Clear testing
-
-3. Build Quality:
-   - Reliable code
-   - Good error handling
-   - Proper testing
+Proprietary software. All rights reserved.
