@@ -60,7 +60,7 @@ class TokenCategorizer:
         if token_address in self.metadata_cache:
             return self.metadata_cache[token_address]
             
-        url = f"{BIRDEYE_SETTINGS['base_url']}{BIRDEYE_SETTINGS['endpoints']['token_metadata']}"
+        url = f"{BIRDEYE_SETTINGS['base_url']}{BIRDEYE_SETTINGS['endpoints']['token_metadata_single']}"
         headers = {
             **BIRDEYE_SETTINGS['headers'],
             "X-API-KEY": d.birdeye_api_key,
