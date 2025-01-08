@@ -30,6 +30,7 @@ class WhaleMonitor:
         self.monitoring_tasks = []  # Track running tasks
         self.is_running = False
         self.last_processed_time: Dict[str, datetime] = {}  # Track last processed time per wallet
+        self.last_api_call = datetime.now()  # Track last API call for rate limiting
         
         self.logger.info("Initializing WhaleMonitor...")
         
@@ -67,6 +68,11 @@ class WhaleMonitor:
         
         for attempt in range(max_retries):
             try:
+                # Add small delay between API calls to prevent rate limiting
+                since_last_call = (datetime.now() - self.last_api_call).total_seconds()
+                if since_last_call < 0.1:  # 100ms minimum delay between calls
+                    await asyncio.sleep(0.1 - since_last_call)
+                
                 url = f"{BIRDEYE_SETTINGS['base_url']}{BIRDEYE_SETTINGS['endpoints']['tx_list']}"
                 params = {
                     "wallet": wallet,
@@ -77,6 +83,7 @@ class WhaleMonitor:
                     "X-API-KEY": d.birdeye_api_key
                 }
                 
+                self.last_api_call = datetime.now()
                 self.logger.debug(f"Fetching transactions for {wallet[:8]}")
                 response = requests.get(url, params=params, headers=headers)
                 response.raise_for_status()
@@ -244,13 +251,17 @@ class WhaleMonitor:
             )
 
     async def process_wallet_batch(self, wallets: List[str], initial_scan: bool = False):
-        """Process a batch of wallets concurrently"""
-        try:
-            tasks = [self.process_wallet(wallet, initial_scan) for wallet in wallets]
-            await asyncio.gather(*tasks)
-            self.logger.info(f"Processed batch of {len(wallets)} wallets")
-        except Exception as e:
-            self.logger.error(f"Error processing wallet batch: {e}")
+        """Process a batch of wallets"""
+        tasks = []
+        for wallet in wallets:
+            # Add small delay between wallet processing to prevent rate limiting
+            since_last_call = (datetime.now() - self.last_api_call).total_seconds()
+            if since_last_call < 0.1:  # 100ms minimum delay between calls
+                await asyncio.sleep(0.1 - since_last_call)
+            tasks.append(self.process_wallet(wallet, initial_scan))
+            
+        await asyncio.gather(*tasks)
+        self.logger.info(f"Processed batch of {len(wallets)} wallets")
 
     def get_wallet_batches(self, wallets: List[str]) -> List[List[str]]:
         """Split wallets into batches for processing"""
@@ -297,15 +308,15 @@ class WhaleMonitor:
                         await self.process_wallet_batch(batch)
                         await asyncio.sleep(1)  # Small delay between batches
                 
-                # 30 minute gap for active wallets
-                await asyncio.sleep(1800)  # 30 minutes
+                # 10 minute gap for active wallets
+                await asyncio.sleep(600)  # 10 minutes
                 
             except Exception as e:
                 self.logger.error(f"Error in active wallet monitoring: {e}")
                 await asyncio.sleep(5)  # Brief pause on error
 
     async def monitor_watching_wallets(self):
-        """Monitor WATCHING wallets every 2 hours"""
+        """Monitor WATCHING wallets every 1 hour"""
         self.logger.info("Starting watching wallet monitoring...")
         while self.is_running:
             try:
@@ -321,8 +332,8 @@ class WhaleMonitor:
                         await self.process_wallet_batch(batch)
                         await asyncio.sleep(1)  # Small delay between batches
                 
-                # 2 hour gap for watching wallets
-                await asyncio.sleep(7200)  # 2 hours
+                # 30 minute gap for watching wallets
+                await asyncio.sleep(1800)  # 30 minutes
                 
             except Exception as e:
                 self.logger.error(f"Error in watching wallet monitoring: {e}")

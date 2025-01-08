@@ -19,9 +19,9 @@ MIN_SOL_AMOUNT = 0.1      # Minimum SOL amount to track
 
 # Trading Rules
 SCORE_THRESHOLDS = {
-    'AI': 199,
-    'MEME': 399,
-    'HYBRID': 199
+    'AI': 80,
+    'MEME': 150,
+    'HYBRID': 80
 }
 
 POSITION_SIZES = {
@@ -64,7 +64,8 @@ TEST_SETTINGS = {
 BIRDEYE_SETTINGS = {
     'base_url': 'https://public-api.birdeye.so',
     'endpoints': {
-        'token_metadata': '/defi/v3/token/meta-data/multiple',  # Updated to use multiple endpoint
+        'token_metadata_single': '/defi/v3/token/meta-data/single',  # Single token endpoint
+        'token_metadata_multiple': '/defi/v3/token/meta-data/multiple',  # Multiple tokens endpoint
         'token_price': '/v1/token/price',
         'token_info': '/v1/token/info',
         'tx_list': '/v1/wallet/tx_list'

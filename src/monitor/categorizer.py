@@ -64,33 +64,40 @@ class TokenCategorizer:
         headers = {
             **BIRDEYE_SETTINGS['headers'],
             "X-API-KEY": d.birdeye_api_key,
-            "x-chain": "solana"  # Required by Birdeye API
+            "accept": "application/json",
+            "x-chain": "solana"
         }
+        params = {"address": token_address}
         
         try:
-            # For single token, still use list format but with one token
-            params = {
-                "list_address": token_address  # API expects comma-separated list
-            }
-            
-            self.logger.debug(f"Fetching metadata for {token_address[:8]}")
             response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
+            response.raise_for_status()  # Raise exception for non-200 status codes
             
             data = response.json()
-            self.logger.debug(f"API Response: {data}")
-            
-            if data.get('success') and data.get('data'):
-                # Multiple endpoint returns data keyed by address
-                token_data = data['data'].get(token_address)
-                if token_data:
-                    self.metadata_cache[token_address] = token_data
-                    return token_data
+            if not data.get('success', False):
+                self.logger.warning(f"API returned success=false for {token_address[:8]}")
+                return None
                 
-            return None
+            token_data = data.get('data')
+            if not token_data:
+                self.logger.warning(f"No data field in response for {token_address[:8]}")
+                return None
+                
+            # Verify required fields
+            required_fields = ['address', 'name', 'symbol', 'decimals']
+            if not all(field in token_data for field in required_fields):
+                self.logger.warning(f"Missing required fields in metadata for {token_address[:8]}")
+                return None
+                
+            # Cache and return valid metadata
+            self.metadata_cache[token_address] = token_data
+            return token_data
             
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request error fetching metadata for {token_address[:8]}: {str(e)}")
+            return None
         except Exception as e:
-            self.logger.error(f"Error fetching metadata for {token_address[:4]}: {e}")
+            self.logger.error(f"Error processing metadata for {token_address[:8]}: {str(e)}")
             return None
 
     def categorize_token(self, token_address: str, symbol: str) -> Tuple[str, float]:

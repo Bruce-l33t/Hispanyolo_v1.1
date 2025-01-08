@@ -76,9 +76,9 @@ MAX_RETRIES = 3
 
 # Score Thresholds
 SCORE_THRESHOLDS = {
-    'AI': 199,
-    'MEME': 399,
-    'HYBRID': 199
+    'AI': 80,
+    'MEME': 150,
+    'HYBRID': 80
 }
 
 # Position Sizes

@@ -1,0 +1,27 @@
+total 136
+drwxr-xr-x 8 root root  4096 Jan  7 14:20 .
+drwx------ 9 root root  4096 Jan  7 14:18 ..
+drwxr-xr-x 8 root root  4096 Jan  6 10:28 .git
+-rw-r--r-- 1 root root   604 Dec 27 16:47 .gitignore
+-rw-r--r-- 1 root root  3886 Dec 27 16:47 CURRENT_STATE.md
+-rw-r--r-- 1 root root  2684 Dec 27 16:47 DEPLOYMENT.md
+-rw-r--r-- 1 root root  7594 Dec 27 16:47 IMPLEMENTATION_FIXES.md
+drwxr-xr-x 2 root root  4096 Dec 27 22:32 __pycache__
+-rwxr-xr-x 1 root root  1639 Dec 27 16:47 check_health.sh
+-rw-r--r-- 1 root root  2757 Jan  7 14:20 config.py
+-rw-r--r-- 1 root root 12549 Jan  7 14:20 crystalized_wallets.csv
+drwxr-xr-x 3 root root  4096 Dec 27 16:47 docs
+-rw-r--r-- 1 root root   539 Dec 27 16:51 dontshare.py
+-rw-r--r-- 1 root root   186 Dec 27 22:32 ecosystem.config.js
+-rw-r--r-- 1 root root 10413 Dec 27 16:47 package-lock.json
+-rw-r--r-- 1 root root   224 Dec 27 16:47 package.json
+-rw-r--r-- 1 root root 12288 Jan  6 10:26 positions.db
+-rw-r--r-- 1 root root   663 Dec 27 16:47 pytest.ini
+-rw-r--r-- 1 root root   357 Dec 27 16:47 requirements.txt
+-rw-r--r-- 1 root root   699 Dec 27 16:47 run.py
+-rw-r--r-- 1 root root  1119 Dec 27 16:47 run_tests.py
+-rw-r--r-- 1 root root  2272 Jan  3 16:42 setup_server.sh
+drwxr-xr-x 7 root root  4096 Dec 29 11:31 src
+drwxr-xr-x 2 root root  4096 Dec 27 16:47 tests
+-rw-r--r-- 1 root root   303 Dec 27 16:47 tsconfig.json
+drwxr-xr-x 5 root root  4096 Dec 27 22:32 venv

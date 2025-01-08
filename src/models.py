@@ -8,6 +8,15 @@ from enum import Enum
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import logging
+
+# Setup dedicated points logger
+points_logger = logging.getLogger('points')
+points_handler = logging.FileHandler('logs/points.log')
+points_handler.setFormatter(logging.Formatter('%(message)s'))
+points_logger.addHandler(points_handler)
+points_logger.setLevel(logging.INFO)
+points_logger.propagate = False  # Don't send to root logger
 
 Base = declarative_base()
 
@@ -146,6 +155,14 @@ class TokenMetrics:
             self.total_volume += amount
             self.unique_buyers.add(wallet_address)
             self.last_update = datetime.now(timezone.utc)
+            
+            # Log to both regular and points log
+            log_message = (
+                f"\n{self.symbol}: {self.score:.2f} points\n"
+                f"{wallet_address[:8]} bought {amount:.2f} SOL: +{wallet_score:.2f} points"
+            )
+            logging.info(log_message)  # Regular log
+            points_logger.info(log_message)  # Points-only log
             
             # Track recent change
             self.recent_changes.insert(0, {

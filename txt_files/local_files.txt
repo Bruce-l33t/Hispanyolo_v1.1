@@ -1,0 +1,25 @@
+total 264
+drwxr-xr-x@ 24 bruce  staff    768 Jan  7 15:21 .
+drwx------+ 40 bruce  staff   1280 Dec 22 16:01 ..
+drwxr-xr-x  15 bruce  staff    480 Jan  3 18:01 .git
+-rw-r--r--@  1 bruce  staff    604 Dec 22 20:26 .gitignore
+drwxr-xr-x@ 13 bruce  staff    416 Jan  7 09:51 Crows_Nest
+drwxr-xr-x@ 16 bruce  staff    512 Jan  7 14:18 Crows_Nest1
+-rw-r--r--   1 bruce  staff   2684 Dec 11 12:43 DEPLOYMENT.md
+drwxr-xr-x@  3 bruce  staff     96 Jan  6 12:00 __pycache__
+-rw-r--r--@  1 bruce  staff   4313 Jan  6 21:18 arc_metadata_test.py
+-rw-r--r--@  1 bruce  staff   5984 Jan  6 21:17 birdeye_diagnostic.py
+-rwxr-xr-x   1 bruce  staff   1639 Dec 11 12:37 check_health.sh
+-rw-r--r--@  1 bruce  staff  12549 Jan  7 15:08 crystalized_wallets.csv
+-rw-r--r--@  1 bruce  staff  55257 Dec  4 14:12 crystalized_wallets_backup_20250107_150807.csv
+drwxr-xr-x  24 bruce  staff    768 Jan  6 20:55 docs
+-rw-r--r--   1 bruce  staff    539 Dec  4 14:12 dontshare.py
+-rw-r--r--@  1 bruce  staff    186 Dec 27 17:57 ecosystem.config.js
+-rw-r--r--@  1 bruce  staff      0 Jan  7 15:21 local_files.txt
+drwxr-xr-x  14 bruce  staff    448 Dec  9 19:46 logs
+drwxr-xr-x@  3 bruce  staff     96 Jan  7 11:57 output
+-rw-r--r--@  1 bruce  staff  12288 Dec 27 15:36 positions.db
+-rw-r--r--@  1 bruce  staff    357 Dec 27 15:48 requirements.txt
+-rw-r--r--@  1 bruce  staff    699 Dec 30 20:50 run.py
+-rw-r--r--@  1 bruce  staff   1279 Dec 27 23:31 setup_server.sh
+drwxr-xr-x  14 bruce  staff    448 Jan  7 15:09 src
