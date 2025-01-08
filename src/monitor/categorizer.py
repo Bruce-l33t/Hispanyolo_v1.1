@@ -108,8 +108,9 @@ class TokenCategorizer:
             return "MEME", 0.0  # Default to MEME if no metadata
 
         name = metadata.get('name', '')
-        # Get description from extensions
-        description = metadata.get('extensions', {}).get('description', '')
+        # Safely handle null extensions
+        extensions = metadata.get('extensions') or {}
+        description = extensions.get('description', '')
         
         # Debug log the metadata we're analyzing
         self.logger.debug(

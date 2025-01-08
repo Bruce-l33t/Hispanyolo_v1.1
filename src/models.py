@@ -174,13 +174,23 @@ class TokenMetrics:
 
     def reduce_score(self, wallet_score: float, amount: float, wallet_address: str):
         """Reduce token score from a sell"""
+        score_reduction = 0.0
         if wallet_address in self.wallet_contributions:  # Remove exact contribution
-            self.score -= self.wallet_contributions[wallet_address]
+            score_reduction = self.wallet_contributions[wallet_address]
+            self.score -= score_reduction
             del self.wallet_contributions[wallet_address]
         
         self.sell_count += 1
         self.total_volume += amount
         self.last_update = datetime.now(timezone.utc)
+        
+        # Log to both regular and points log
+        log_message = (
+            f"\n{self.symbol}: {self.score:.2f} points\n"
+            f"{wallet_address[:8]} sold {amount:.2f} SOL: -{score_reduction:.2f} points"
+        )
+        logging.info(log_message)  # Regular log
+        points_logger.info(log_message)  # Points-only log
         
         # Track recent change
         self.recent_changes.insert(0, {
