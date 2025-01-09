@@ -22,42 +22,67 @@ class TokenMetricsManager:
         
     async def get_or_create_metrics(self, token_address: str, symbol: str) -> TokenMetrics:
         """Get existing metrics or create new ones"""
-        if token_address not in self.token_metrics:
-            # Create new metrics
-            self.token_metrics[token_address] = TokenMetrics(
-                symbol=symbol,
-                token_address=token_address
-            )
-            
-            # Categorize token and get metadata
-            category, confidence = self.categorizer.categorize_token(
-                token_address, 
-                symbol
-            )
-            
-            # Update metrics with metadata only if no symbol provided
-            metadata = self.categorizer.get_token_metadata(token_address)
-            if metadata and metadata.get('symbol') and not symbol:  # Only use if no symbol provided
-                self.token_metrics[token_address].symbol = metadata['symbol']
-                self.logger.info(
-                    f"Using metadata symbol as backup: {metadata['symbol']}"
+        try:
+            if token_address not in self.token_metrics:
+                # Create new metrics with fallback symbol if needed
+                self.token_metrics[token_address] = TokenMetrics(
+                    symbol=symbol or token_address[:8],  # Use address prefix as fallback
+                    token_address=token_address
                 )
+                
+                try:
+                    # Categorize token and get metadata
+                    category, confidence = self.categorizer.categorize_token(
+                        token_address, 
+                        symbol
+                    )
+                    
+                    # Try to get and validate metadata
+                    metadata = self.categorizer.get_token_metadata(token_address)
+                    if metadata is not None and isinstance(metadata, dict):
+                        # Only update symbol if none was provided and metadata has a valid one
+                        if not symbol and metadata.get('symbol'):
+                            self.token_metrics[token_address].symbol = metadata['symbol']
+                            self.logger.info(
+                                f"Using metadata symbol as backup: {metadata['symbol']}"
+                            )
+                    
+                    self.token_metrics[token_address].category = category
+                    self.token_metrics[token_address].confidence = confidence
+                    
+                except Exception as e:
+                    self.logger.warning(
+                        f"Error processing metadata for {token_address[:8]}: {str(e)}, "
+                        "defaulting to UNKNOWN category"
+                    )
+                    self.token_metrics[token_address].category = "UNKNOWN"
+                    self.token_metrics[token_address].confidence = 0.0
+                
+                self.logger.info(
+                    f"Created metrics for {self.token_metrics[token_address].symbol} "
+                    f"({self.token_metrics[token_address].category}, "
+                    f"{self.token_metrics[token_address].confidence:.2f})"
+                )
+                
+                # Initialize previous score
+                self.previous_scores[token_address] = 0.0
+                
+                # Emit token metrics update
+                await self.emit_metrics_update()
             
-            self.token_metrics[token_address].category = category
-            self.token_metrics[token_address].confidence = confidence
+            return self.token_metrics[token_address]
             
-            self.logger.info(
-                f"Created metrics for {self.token_metrics[token_address].symbol} "
-                f"({category}, {confidence:.2f})"
-            )
-            
-            # Initialize previous score
-            self.previous_scores[token_address] = 0.0
-            
-            # Emit token metrics update
-            await self.emit_metrics_update()
-            
-        return self.token_metrics[token_address]
+        except Exception as e:
+            self.logger.error(f"Error in get_or_create_metrics for {token_address[:8]}: {str(e)}")
+            # Create basic metrics as fallback if something went wrong
+            if token_address not in self.token_metrics:
+                self.token_metrics[token_address] = TokenMetrics(
+                    symbol=symbol or token_address[:8],
+                    token_address=token_address,
+                    category="UNKNOWN",
+                    confidence=0.0
+                )
+            return self.token_metrics[token_address]
     
     async def process_transaction(
         self,
