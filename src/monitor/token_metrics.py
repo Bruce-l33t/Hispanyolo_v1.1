@@ -53,9 +53,9 @@ class TokenMetricsManager:
                 except Exception as e:
                     self.logger.warning(
                         f"Error processing metadata for {token_address[:8]}: {str(e)}, "
-                        "defaulting to UNKNOWN category"
+                        "defaulting to MEME category"
                     )
-                    self.token_metrics[token_address].category = "UNKNOWN"
+                    self.token_metrics[token_address].category = "MEME"
                     self.token_metrics[token_address].confidence = 0.0
                 
                 self.logger.info(
@@ -79,7 +79,7 @@ class TokenMetricsManager:
                 self.token_metrics[token_address] = TokenMetrics(
                     symbol=symbol or token_address[:8],
                     token_address=token_address,
-                    category="UNKNOWN",
+                    category="MEME",  # Default to MEME as fallback
                     confidence=0.0
                 )
             return self.token_metrics[token_address]
