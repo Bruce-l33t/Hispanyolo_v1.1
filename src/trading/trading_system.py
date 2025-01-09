@@ -13,8 +13,9 @@ from .position_manager import PositionManager
 from .alchemy import AlchemyTrader
 from .price_service import PriceService
 from ..config import PROFIT_LEVELS
+from ..utils.sol_balance import get_sol_balance
 
-TAKE_PROFIT_SELL_PORTION = 0.25  # Sell 25% at each level
+MIN_SOL_BALANCE = 1.0  # Minimum SOL balance required for new trades
 
 class TradingSystem:
     """
@@ -50,7 +51,17 @@ class TradingSystem:
                 self.logger.info("Position limits reached")
                 return
                 
-            # 3. Get quote first for price info
+            # 3. Check SOL balance
+            balance = await get_sol_balance()
+            if balance is None:
+                self.logger.error("Could not check SOL balance")
+                return
+                
+            if balance < MIN_SOL_BALANCE:
+                self.logger.info(f"Insufficient SOL balance ({balance:.4f} SOL) for new trade, minimum required: {MIN_SOL_BALANCE} SOL")
+                return
+                
+            # 4. Get quote first for price info
             quote = self.trader.get_jupiter_quote(
                 token_address=trade_params['token_address'],
                 amount_in=trade_params['size'],
@@ -65,7 +76,7 @@ class TradingSystem:
             out_amount = float(quote['outAmount']) / 1e6  # Convert to actual tokens (6 decimals)
             price = in_amount / out_amount if out_amount > 0 else 0
                 
-            # 4. Execute trade
+            # 5. Execute trade
             self.logger.info(f"Executing trade: {trade_params}")
             signature = await self.trader.execute_swap(
                 token_address=trade_params['token_address'],
@@ -224,8 +235,8 @@ class TradingSystem:
                 for i, level in enumerate(PROFIT_LEVELS):
                     target_price = position.entry_price * (1 + level['increase'])
                     if price >= target_price and i not in position.profit_levels_hit:
-                        # Sell 25% of current tokens
-                        tokens_to_sell = round(position.tokens * TAKE_PROFIT_SELL_PORTION)
+                        # Use configured sell portion for this level
+                        tokens_to_sell = round(position.tokens * level['sell_portion'])
                         
                         # Execute take profit
                         if await self.execute_take_profit(

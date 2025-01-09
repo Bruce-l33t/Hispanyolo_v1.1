@@ -25,7 +25,8 @@ logger = logging.getLogger('metadata_test')
 TEST_TOKENS = {
     "7h5AzpYTAnh4Gyux8Gqko5Fvx4AYQBZdkzHZ2CsBudvJ": "Citadail",
     "DKu9kykSfbN5LBfFXtNNDPaX35o4Fv6vJ9FKk7pZpump": "AVA",
-    "oraim8c9d1nkfuQk9EzGYEUGxqL3MHQYndRw1huVo5h": "MAX"
+    "oraim8c9d1nkfuQk9EzGYEUGxqL3MHQYndRw1huVo5h": "MAX",
+    "AaWVpk6eZbgBfVbq1UfXw3EXBmAvw4QXov1xHuG7pump": "TrenchAI"
 }
 
 def test_single_metadata():

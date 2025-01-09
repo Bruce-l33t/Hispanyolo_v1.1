@@ -35,7 +35,9 @@ class AlchemyTrader:
     ) -> Optional[Dict]:
         """Get Jupiter quote for swap"""
         try:
-            amount_lamports = int(amount_in * 1_000_000_000)  # Convert to lamports
+            # Convert amount based on whether it's a buy (SOL, 9 decimals) or sell (token, 6 decimals)
+            decimals = 9 if not is_sell else 6
+            amount_in_decimals = int(amount_in * (10 ** decimals))
             
             # For sells, swap from token to SOL
             input_mint = token_address if is_sell else WSOL_ADDRESS
@@ -44,7 +46,7 @@ class AlchemyTrader:
             params = {
                 "inputMint": input_mint,
                 "outputMint": output_mint,
-                "amount": amount_lamports,
+                "amount": amount_in_decimals,
                 "slippageBps": int(slippage * 10000),  # Convert to basis points
                 "onlyDirectRoutes": "true",
                 "asLegacyTransaction": "false",

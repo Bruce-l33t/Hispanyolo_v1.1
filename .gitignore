@@ -66,3 +66,12 @@ wheels/
 .installed.cfg
 *.egg
 DEPLOYMENT_INFO.md
+
+# Server-specific files
+server_alchemy.py
+server_categorizer.py
+server_config.py
+server_monitor.py
+server_position_manager.py
+server_trading_position_manager.py
+server_trading_system.py

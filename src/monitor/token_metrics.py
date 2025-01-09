@@ -70,6 +70,17 @@ class TokenMetricsManager:
     ):
         """Process a token transaction"""
         try:
+            # Validate inputs
+            if not token_address:
+                raise ValueError("Token address is required")
+            if not symbol:
+                symbol = token_address[:8]  # Use address prefix as fallback
+                self.logger.warning(f"No symbol provided for {token_address[:8]}, using address prefix")
+            if not amount or amount <= 0:
+                raise ValueError(f"Invalid amount: {amount}")
+            if not wallet_address:
+                raise ValueError("Wallet address is required")
+                
             metrics = await self.get_or_create_metrics(token_address, symbol)
             previous_score = metrics.score  # Get score before update
             
@@ -120,7 +131,7 @@ class TokenMetricsManager:
                 
         except Exception as e:
             self.logger.error(
-                f"Error processing transaction for {symbol}: {str(e)}"
+                f"Error processing transaction for {symbol} ({token_address[:8]}): {str(e)}"
             )
             
     async def emit_metrics_update(self):

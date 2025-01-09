@@ -37,10 +37,13 @@ MAX_MEME_POSITIONS = 2
 
 # Profit taking levels
 PROFIT_LEVELS = [
-    {'increase': 0.6, 'sell_portion': 0.25},  # 60% up, sell 25%
+    {'increase': 0.6, 'sell_portion': 0.50},  # 60% up, sell 50%
     {'increase': 1.2, 'sell_portion': 0.25},  # 120% up, sell 25%
     {'increase': 1.8, 'sell_portion': 0.25},  # 180% up, sell 25%
-    {'increase': 2.4, 'sell_portion': 0.25}   # 240% up, sell 25%
+    {'increase': 2.4, 'sell_portion': 0.25},  # 240% up, sell 25%
+    {'increase': 4.2, 'sell_portion': 0.25},  # 420% up, sell 25%
+    {'increase': 8.88, 'sell_portion': 0.25}, # 888% up, sell 25%
+    {'increase': 10.0, 'sell_portion': 0.50}  # 1000% up, sell remaining 50%
 ]
 
 # Transaction settings

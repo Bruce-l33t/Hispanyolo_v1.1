@@ -58,30 +58,25 @@ class PositionManager:
             session.close()
             
     def can_open_position(self, category: str) -> bool:
-        """Check if we can open a new position"""
-        # Check total position limit
+        """Track position counts without enforcing limits"""
         active_positions = [p for p in self.positions.values() if p.status == "ACTIVE"]
-        if len(active_positions) >= MAX_POSITIONS:
-            self.logger.info(f"At max positions: {len(active_positions)}/{MAX_POSITIONS}")
-            return False
+        
+        # Log total positions (no limit enforced)
+        self.logger.info(f"Current total positions: {len(active_positions)}")
             
-        # Count positions by category
+        # Count and log positions by category (no limits enforced)
         if category == "MEME":
             category_positions = len([
                 p for p in active_positions
                 if p.category == "MEME"
             ])
-            if category_positions >= MAX_MEME_POSITIONS:
-                self.logger.info(f"At max MEME positions: {category_positions}/{MAX_MEME_POSITIONS}")
-                return False
+            self.logger.info(f"Current MEME positions: {category_positions}")
         else:  # AI or HYBRID (treated as AI)
             ai_positions = len([
                 p for p in active_positions
                 if p.category in ["AI", "HYBRID"]
             ])
-            if ai_positions >= MAX_AI_POSITIONS:
-                self.logger.info(f"At max AI positions: {ai_positions}/{MAX_AI_POSITIONS}")
-                return False
+            self.logger.info(f"Current AI/HYBRID positions: {ai_positions}")
                 
         return True
         
