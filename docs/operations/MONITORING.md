@@ -16,9 +16,14 @@ View application logs:
 ssh root@SERVER_IP "cd ~/Hispanyolo_v1 && pm2 logs pirate-backend"
 ```
 
-Check positions:
+Check positions summary:
 ```bash
-ssh root@SERVER_IP "cd ~/Hispanyolo_v1 && source venv/bin/activate && python3 src/position_manager.py --check"
+ssh root@SERVER_IP "cd ~/Hispanyolo_v1 && source venv/bin/activate && python3 src/position_manager.py --summary"
+```
+
+Check points log:
+```bash
+ssh root@SERVER_IP "cat ~/Hispanyolo_v1/logs/points.log"
 ```
 
 Run health check:
